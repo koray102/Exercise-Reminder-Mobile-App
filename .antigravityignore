@@ -1,0 +1,34 @@
+# ============================================================
+# .antigravityignore
+# Bu dosyadaki dosya ve klasörler Antigravity tarafından
+# ileriki promptlarda tekrar okunmayacak.
+# Sadece 1 kez okunması yeterli olan, nadiren değişen dosyalar.
+# ============================================================
+
+# === Proje Yapılandırma Dosyaları ===
+app.json
+tsconfig.json
+package.json
+package-lock.json
+expo-env.d.ts
+.gitignore
+
+# === Agent / AI Talimat Dosyaları ===
+AGENTS.md
+CLAUDE.md
+
+# === Lisans ===
+LICENSE
+
+# === Test Dosyaları ===
+testDb.ts
+
+# === Statik Varlıklar (assets) ===
+assets/
+
+# === Expo / Build Klasörleri ===
+.expo/
+.vscode/
+.claude/
+.git/
+node_modules/
