@@ -36,6 +36,7 @@ export default function ExerciseScreen() {
   const [phase, setPhase] = useState<Phase>('prep');
   const [remainingSeconds, setRemainingSeconds] = useState(Config.PREP_DURATION_SECONDS);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentSide, setCurrentSide] = useState<'left' | 'right'>('left');
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -57,7 +58,7 @@ export default function ExerciseScreen() {
       setExercises(exList);
 
       if (exList.length === 0) {
-        Alert.alert('Hata', 'Bu kategoride egzersiz bulunamadı.');
+        Alert.alert('Error', 'No exercises found in this category.');
         router.back();
         return;
       }
@@ -116,6 +117,29 @@ export default function ExerciseScreen() {
   const handleFinish = async () => {
     if (timerRef.current) clearInterval(timerRef.current);
 
+    const currentExercise = exercises[currentIndex];
+
+    // Two-sided: if just finished left side, switch to right
+    if (currentExercise.is_two_sided && currentSide === 'left') {
+      setCurrentSide('right');
+      setPhase('prep');
+      setRemainingSeconds(Config.PREP_DURATION_SECONDS);
+      setTimeout(() => {
+        startTimer(Config.PREP_DURATION_SECONDS, () => {
+          setPhase('active');
+          const duration = currentExercise.duration_seconds ?? 30;
+          setRemainingSeconds(duration);
+          startTimer(duration, () => {
+            setPhase('finished');
+          });
+        });
+      }, 300);
+      return;
+    }
+
+    // Reset side for next exercise
+    setCurrentSide('left');
+
     const nextIndex = currentIndex + 1;
 
     if (nextIndex >= exercises.length) {
@@ -150,12 +174,12 @@ export default function ExerciseScreen() {
 
   const handleExit = () => {
     Alert.alert(
-      'Çıkış',
-      'Egzersizi yarıda bırakmak istediğinize emin misiniz? Bu streak\'inizi etkilemeyecek.',
+      'Exit',
+      'Are you sure you want to quit? This won\'t affect your streak.',
       [
-        { text: 'Devam Et', style: 'cancel' },
+        { text: 'Continue', style: 'cancel' },
         {
-          text: 'Çıkış',
+          text: 'Exit',
           style: 'destructive',
           onPress: () => {
             if (timerRef.current) clearInterval(timerRef.current);
@@ -169,7 +193,7 @@ export default function ExerciseScreen() {
   if (isLoading || exercises.length === 0) {
     return (
       <View style={styles.container}>
-        <Text style={styles.loadingText}>Yükleniyor...</Text>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
@@ -187,16 +211,16 @@ export default function ExerciseScreen() {
           <View style={styles.completedIcon}>
             <Ionicons name="checkmark-circle" size={80} color={Colors.success} />
           </View>
-          <Text style={styles.completedTitle}>Tebrikler! 🎉</Text>
+          <Text style={styles.completedTitle}>Congrats! 🎉</Text>
           <Text style={styles.completedSubtitle}>
-            {categoryTitle} kategorisindeki tüm egzersizleri tamamladın!
+            You completed all exercises in {categoryTitle}!
           </Text>
           <TouchableOpacity
             style={styles.completedButton}
             onPress={() => router.back()}
             activeOpacity={0.8}
           >
-            <Text style={styles.completedButtonText}>Ana Sayfaya Dön</Text>
+            <Text style={styles.completedButtonText}>Back to Home</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -236,6 +260,19 @@ export default function ExerciseScreen() {
         ))}
       </View>
 
+      {/* Side Indicator for two-sided exercises */}
+      {currentExercise?.is_two_sided && (
+        <View style={styles.sideIndicator}>
+          <View style={[styles.sideBadge, currentSide === 'left' && styles.sideBadgeActive]}>
+            <Text style={[styles.sideText, currentSide === 'left' && styles.sideTextActive]}>Left</Text>
+          </View>
+          <Ionicons name="swap-horizontal" size={16} color={Colors.textMuted} />
+          <View style={[styles.sideBadge, currentSide === 'right' && styles.sideBadgeActive]}>
+            <Text style={[styles.sideText, currentSide === 'right' && styles.sideTextActive]}>Right</Text>
+          </View>
+        </View>
+      )}
+
       {/* Timer */}
       <View style={styles.timerContainer}>
         <TimerCircle
@@ -243,8 +280,8 @@ export default function ExerciseScreen() {
           remainingSeconds={remainingSeconds}
           isPrep={phase === 'prep'}
           label={
-            phase === 'prep'
-              ? currentExercise?.name ?? ''
+            currentExercise?.is_two_sided
+              ? `${currentExercise?.name ?? ''} (${currentSide === 'left' ? 'Left' : 'Right'})`
               : currentExercise?.name ?? ''
           }
         />
@@ -252,7 +289,7 @@ export default function ExerciseScreen() {
 
       {/* Exercise Info */}
       <Animated.View
-        key={`exercise-${currentIndex}`}
+        key={`exercise-${currentIndex}-${currentSide}`}
         entering={SlideInRight.duration(300)}
         style={styles.exerciseInfo}
       >
@@ -272,7 +309,9 @@ export default function ExerciseScreen() {
               activeOpacity={0.8}
             >
               <Text style={styles.finishButtonText}>
-                {currentIndex + 1 >= exercises.length ? 'Tamamla ✓' : 'Bitir → Sonraki'}
+                {currentExercise.is_two_sided && currentSide === 'left'
+                  ? 'Switch Side →'
+                  : currentIndex + 1 >= exercises.length ? 'Complete ✓' : 'Finish → Next'}
               </Text>
             </TouchableOpacity>
           </Animated.View>
@@ -287,7 +326,7 @@ export default function ExerciseScreen() {
             }}
             activeOpacity={0.7}
           >
-            <Text style={styles.skipTimerText}>Süreyi Atla</Text>
+            <Text style={styles.skipTimerText}>Skip Timer</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -448,5 +487,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: Colors.textInverse,
+  },
+  sideIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingVertical: 8,
+    marginBottom: 4,
+  },
+  sideBadge: {
+    paddingHorizontal: 18,
+    paddingVertical: 7,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.surfaceBorder,
+  },
+  sideBadgeActive: {
+    backgroundColor: Colors.accentMuted,
+    borderColor: Colors.accent,
+  },
+  sideText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textMuted,
+  },
+  sideTextActive: {
+    color: Colors.accent,
   },
 });

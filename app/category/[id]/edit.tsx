@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Switch,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,6 +33,7 @@ interface ExerciseForm {
   youtube_link: string;
   duration_minutes: string;
   duration_seconds: string;
+  is_two_sided: boolean;
 }
 
 function generateId(): string {
@@ -61,7 +63,7 @@ export default function EditCategory() {
     try {
       const category = await getCategoryById(id);
       if (!category) {
-        Alert.alert('Hata', 'Kategori bulunamadı.');
+        Alert.alert('Error', 'Category not found.');
         router.back();
         return;
       }
@@ -78,6 +80,7 @@ export default function EditCategory() {
           youtube_link: ex.youtube_link,
           duration_minutes: String(Math.floor(ex.duration_seconds / 60)),
           duration_seconds: String(ex.duration_seconds % 60),
+          is_two_sided: !!ex.is_two_sided,
         }))
       );
     } catch (error) {
@@ -90,7 +93,7 @@ export default function EditCategory() {
   const addExerciseForm = () => {
     setExercises([
       ...exercises,
-      { name: '', description: '', youtube_link: '', duration_minutes: '0', duration_seconds: '30' },
+      { name: '', description: '', youtube_link: '', duration_minutes: '0', duration_seconds: '30', is_two_sided: false },
     ]);
   };
 
@@ -98,7 +101,7 @@ export default function EditCategory() {
     setExercises(exercises.filter((_, i) => i !== index));
   };
 
-  const updateExerciseForm = (index: number, field: keyof ExerciseForm, value: string) => {
+  const updateExerciseForm = (index: number, field: keyof ExerciseForm, value: string | boolean) => {
     const updated = [...exercises];
     updated[index] = { ...updated[index], [field]: value };
     setExercises(updated);
@@ -106,7 +109,7 @@ export default function EditCategory() {
 
   const handleSave = async () => {
     if (!id || !title.trim()) {
-      Alert.alert('Hata', 'Kategori başlığı gerekli.');
+      Alert.alert('Error', 'Category title is required.');
       return;
     }
 
@@ -131,6 +134,7 @@ export default function EditCategory() {
           youtube_link: ex.youtube_link?.trim() || '',
           duration_seconds: durationSec,
           sort_order: i,
+          is_two_sided: ex.is_two_sided ? 1 : 0,
         });
       }
 
@@ -139,7 +143,7 @@ export default function EditCategory() {
       router.back();
     } catch (error) {
       console.error('Save error:', error);
-      Alert.alert('Hata', 'Kaydetme sırasında bir hata oluştu.');
+      Alert.alert('Error', 'An error occurred while saving.');
     } finally {
       setIsSaving(false);
     }
@@ -147,12 +151,12 @@ export default function EditCategory() {
 
   const handleDelete = () => {
     Alert.alert(
-      'Kategoriyi Sil',
-      'Bu kategori ve tüm egzersizleri kalıcı olarak silinecek. Emin misiniz?',
+      'Delete Category',
+      'This category and all exercises will be permanently deleted. Are you sure?',
       [
-        { text: 'İptal', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Sil',
+          text: 'Delete',
           style: 'destructive',
           onPress: async () => {
             if (!id) return;
@@ -169,7 +173,7 @@ export default function EditCategory() {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Yükleniyor...</Text>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
@@ -187,21 +191,21 @@ export default function EditCategory() {
       >
         {/* Category Info */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Kategori Bilgileri</Text>
+          <Text style={styles.sectionTitle}>Category Info</Text>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Başlık</Text>
+            <Text style={styles.inputLabel}>Title</Text>
             <TextInput
               style={styles.input}
               value={title}
               onChangeText={setTitle}
-              placeholder="Kategori başlığı"
+              placeholder="Category title"
               placeholderTextColor={Colors.textMuted}
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Hatırlatma Aralığı (dakika)</Text>
+            <Text style={styles.inputLabel}>Reminder Interval (minutes)</Text>
             <TextInput
               style={styles.input}
               value={intervalMinutes}
@@ -216,17 +220,17 @@ export default function EditCategory() {
         {/* Exercises */}
         <View style={styles.section}>
           <View style={styles.exerciseHeader}>
-            <Text style={styles.sectionTitle}>Egzersizler</Text>
+            <Text style={styles.sectionTitle}>Exercises</Text>
             <TouchableOpacity style={styles.addExerciseBtn} onPress={addExerciseForm}>
               <Ionicons name="add-circle" size={24} color={Colors.accent} />
-              <Text style={styles.addExerciseText}>Ekle</Text>
+              <Text style={styles.addExerciseText}>Add</Text>
             </TouchableOpacity>
           </View>
 
           {exercises.map((exercise, index) => (
             <View key={index} style={styles.exerciseCard}>
               <View style={styles.exerciseCardHeader}>
-                <Text style={styles.exerciseCardTitle}>Egzersiz {index + 1}</Text>
+                <Text style={styles.exerciseCardTitle}>Exercise {index + 1}</Text>
                 <TouchableOpacity onPress={() => removeExerciseForm(index)}>
                   <Ionicons name="close-circle" size={22} color={Colors.error} />
                 </TouchableOpacity>
@@ -236,7 +240,7 @@ export default function EditCategory() {
                 style={styles.input}
                 value={exercise.name}
                 onChangeText={v => updateExerciseForm(index, 'name', v)}
-                placeholder="Egzersiz adı"
+                placeholder="Exercise name"
                 placeholderTextColor={Colors.textMuted}
               />
 
@@ -244,7 +248,7 @@ export default function EditCategory() {
                 style={[styles.input, styles.multilineInput]}
                 value={exercise.description}
                 onChangeText={v => updateExerciseForm(index, 'description', v)}
-                placeholder="Açıklama (isteğe bağlı)"
+                placeholder="Description (optional)"
                 placeholderTextColor={Colors.textMuted}
                 multiline
                 numberOfLines={2}
@@ -254,7 +258,7 @@ export default function EditCategory() {
                 style={styles.input}
                 value={exercise.youtube_link}
                 onChangeText={v => updateExerciseForm(index, 'youtube_link', v)}
-                placeholder="YouTube linki (isteğe bağlı)"
+                placeholder="YouTube link (optional)"
                 placeholderTextColor={Colors.textMuted}
                 autoCapitalize="none"
                 keyboardType="url"
@@ -262,7 +266,7 @@ export default function EditCategory() {
 
               <View style={styles.durationRow}>
                 <View style={styles.durationInput}>
-                  <Text style={styles.durationLabel}>Dakika</Text>
+                  <Text style={styles.durationLabel}>Minutes</Text>
                   <TextInput
                     style={styles.input}
                     value={exercise.duration_minutes}
@@ -273,7 +277,7 @@ export default function EditCategory() {
                   />
                 </View>
                 <View style={styles.durationInput}>
-                  <Text style={styles.durationLabel}>Saniye</Text>
+                  <Text style={styles.durationLabel}>Seconds</Text>
                   <TextInput
                     style={styles.input}
                     value={exercise.duration_seconds}
@@ -284,12 +288,26 @@ export default function EditCategory() {
                   />
                 </View>
               </View>
+
+              {/* Two-Sided Toggle */}
+              <View style={styles.twoSidedRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.twoSidedLabel}>Two-Sided</Text>
+                  <Text style={styles.twoSidedDesc}>Perform on both left and right sides</Text>
+                </View>
+                <Switch
+                  value={exercise.is_two_sided}
+                  onValueChange={v => updateExerciseForm(index, 'is_two_sided', v)}
+                  trackColor={{ false: Colors.surfaceBorder, true: Colors.accentMuted }}
+                  thumbColor={exercise.is_two_sided ? Colors.accent : Colors.textMuted}
+                />
+              </View>
             </View>
           ))}
 
           {exercises.length === 0 && (
             <View style={styles.emptyExercises}>
-              <Text style={styles.emptyText}>Henüz egzersiz eklenmemiş</Text>
+              <Text style={styles.emptyText}>No exercises added yet</Text>
             </View>
           )}
         </View>
@@ -301,7 +319,7 @@ export default function EditCategory() {
           activeOpacity={0.7}
         >
           <Ionicons name="trash-outline" size={20} color={Colors.error} />
-          <Text style={styles.deleteButtonText}>Kategoriyi Sil</Text>
+          <Text style={styles.deleteButtonText}>Delete Category</Text>
         </TouchableOpacity>
 
         <View style={{ height: 100 }} />
@@ -317,7 +335,7 @@ export default function EditCategory() {
         >
           <Ionicons name="checkmark-circle" size={22} color={Colors.textInverse} />
           <Text style={styles.saveButtonText}>
-            {isSaving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'}
+            {isSaving ? 'Saving...' : 'Save Changes'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -474,5 +492,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: Colors.textInverse,
+  },
+  twoSidedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.surfaceBorder,
+  },
+  twoSidedLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  twoSidedDesc: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 2,
   },
 });

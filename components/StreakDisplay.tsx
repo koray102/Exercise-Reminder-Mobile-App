@@ -73,7 +73,7 @@ export default function StreakDisplay({ currentStreak, totalCount }: StreakDispl
           >
             {currentStreak}
           </Animated.Text>
-          <Text style={styles.streakLabel}>gün seri</Text>
+          <Text style={styles.streakLabel}>day streak</Text>
         </View>
       </View>
 
@@ -92,7 +92,7 @@ export default function StreakDisplay({ currentStreak, totalCount }: StreakDispl
             />
           </View>
           <Text style={styles.milestoneText}>
-            Sonraki hedef: {nextMilestone} gün
+            Next goal: {nextMilestone} days
           </Text>
         </View>
       )}
@@ -100,7 +100,7 @@ export default function StreakDisplay({ currentStreak, totalCount }: StreakDispl
       {/* Total stretch count */}
       <View style={styles.totalContainer}>
         <Text style={styles.totalNumber}>{totalCount}</Text>
-        <Text style={styles.totalLabel}>toplam esneme</Text>
+        <Text style={styles.totalLabel}>total stretches</Text>
       </View>
     </Animated.View>
   );

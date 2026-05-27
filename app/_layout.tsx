@@ -86,28 +86,28 @@ export default function RootLayout() {
         <Stack.Screen
           name="category/add"
           options={{
-            title: 'Yeni Kategori',
+            title: 'New Category',
             presentation: 'modal',
           }}
         />
         <Stack.Screen
           name="category/[id]/edit"
           options={{
-            title: 'Kategori Düzenle',
+            title: 'Edit Category',
             presentation: 'modal',
           }}
         />
         <Stack.Screen
           name="exercise/[categoryId]"
           options={{
-            title: 'Egzersiz',
+            title: 'Exercise',
             headerShown: false,
           }}
         />
         <Stack.Screen
           name="settings"
           options={{
-            title: 'Ayarlar',
+            title: 'Settings',
           }}
         />
       </Stack>

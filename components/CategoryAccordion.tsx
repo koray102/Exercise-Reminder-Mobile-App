@@ -123,9 +123,9 @@ export default function CategoryAccordion({
     if (seconds >= 60) {
       const min = Math.floor(seconds / 60);
       const sec = seconds % 60;
-      return sec > 0 ? `${min}dk ${sec}sn` : `${min}dk`;
+      return sec > 0 ? `${min}m ${sec}s` : `${min}m`;
     }
-    return `${seconds}sn`;
+    return `${seconds}s`;
   };
 
   const totalDuration = exercises.reduce((sum, e) => sum + e.duration_seconds, 0);
@@ -183,7 +183,7 @@ export default function CategoryAccordion({
           <View style={{ flex: 1 }}>
             <Text style={styles.categoryTitle} numberOfLines={1}>{category.title}</Text>
             <Text style={styles.categoryMeta}>
-              {exercises.length} hareket · {formatDuration(totalDuration)} · Her {category.interval_minutes} dk
+              {exercises.length} exercise{exercises.length !== 1 ? 's' : ''} · {formatDuration(totalDuration)} · Every {category.interval_minutes} min
             </Text>
           </View>
         </View>
@@ -233,6 +233,12 @@ export default function CategoryAccordion({
                       <Text style={styles.youtubeLinkText}>Video</Text>
                     </TouchableOpacity>
                   ) : null}
+                  {exercise.is_two_sided ? (
+                    <View style={styles.twoSidedBadge}>
+                      <Ionicons name="swap-horizontal" size={12} color={Colors.secondary} />
+                      <Text style={styles.twoSidedText}>2-Sided</Text>
+                    </View>
+                  ) : null}
                 </View>
               </View>
             </View>
@@ -246,7 +252,7 @@ export default function CategoryAccordion({
               activeOpacity={0.8}
             >
               <Ionicons name="play" size={18} color={Colors.textInverse} />
-              <Text style={styles.startButtonText}>Harekete Başla</Text>
+              <Text style={styles.startButtonText}>Start Routine</Text>
             </TouchableOpacity>
           )}
         </Animated.View>
@@ -437,5 +443,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: Colors.textInverse,
+  },
+  twoSidedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(255, 179, 71, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  twoSidedText: {
+    fontSize: 11,
+    color: Colors.secondary,
+    fontWeight: '600',
   },
 });

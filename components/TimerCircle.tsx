@@ -87,7 +87,7 @@ export default function TimerCircle({ totalSeconds, remainingSeconds, isPrep, la
           </Text>
           <Text style={styles.labelText}>{label}</Text>
           {isPrep && (
-            <Text style={styles.prepText}>Hazırlan!</Text>
+            <Text style={styles.prepText}>Get Ready!</Text>
           )}
         </View>
       </View>

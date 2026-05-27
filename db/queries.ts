@@ -19,6 +19,7 @@ export interface Exercise {
   youtube_link: string;
   duration_seconds: number;
   sort_order: number;
+  is_two_sided: number;
 }
 
 export interface Settings {
@@ -139,14 +140,15 @@ export function addExercise(exercise: Exercise): Promise<void> {
     console.log('[DB] addExercise:', exercise.id, exercise.name);
     const db = await getDatabase();
     await db.runAsync(
-      'INSERT INTO exercises (id, category_id, name, description, youtube_link, duration_seconds, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO exercises (id, category_id, name, description, youtube_link, duration_seconds, sort_order, is_two_sided) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       exercise.id,
       exercise.category_id,
       exercise.name,
       exercise.description ?? '',
       exercise.youtube_link ?? '',
       exercise.duration_seconds,
-      exercise.sort_order
+      exercise.sort_order,
+      exercise.is_two_sided ?? 0
     );
     console.log('[DB] addExercise OK');
   });
@@ -157,12 +159,13 @@ export function updateExercise(exercise: Exercise): Promise<void> {
     console.log('[DB] updateExercise:', exercise.id);
     const db = await getDatabase();
     await db.runAsync(
-      'UPDATE exercises SET name = ?, description = ?, youtube_link = ?, duration_seconds = ?, sort_order = ? WHERE id = ?',
+      'UPDATE exercises SET name = ?, description = ?, youtube_link = ?, duration_seconds = ?, sort_order = ?, is_two_sided = ? WHERE id = ?',
       exercise.name,
       exercise.description ?? '',
       exercise.youtube_link ?? '',
       exercise.duration_seconds,
       exercise.sort_order,
+      exercise.is_two_sided ?? 0,
       exercise.id
     );
     console.log('[DB] updateExercise OK');

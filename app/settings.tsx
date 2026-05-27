@@ -58,7 +58,7 @@ export default function SettingsScreen() {
     // Basic validation
     const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
     if (!timeRegex.test(windowStart) || !timeRegex.test(windowEnd)) {
-      Alert.alert('Hata', 'Geçersiz saat formatı. HH:MM kullanın (ör. 13:00)');
+      Alert.alert('Error', 'Invalid time format. Use HH:MM (e.g. 13:00)');
       return;
     }
 
@@ -69,10 +69,10 @@ export default function SettingsScreen() {
       });
       await scheduleAllNotifications();
       await refreshData();
-      Alert.alert('Başarılı', 'Aktif pencere güncellendi.');
+      Alert.alert('Success', 'Active window updated.');
     } catch (error) {
       console.error('Save window error:', error);
-      Alert.alert('Hata', 'Kaydetme sırasında bir hata oluştu.');
+      Alert.alert('Error', 'An error occurred while saving.');
     }
   };
 
@@ -86,13 +86,13 @@ export default function SettingsScreen() {
     >
       {/* Notifications Toggle */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Bildirimler</Text>
+        <Text style={styles.sectionTitle}>Notifications</Text>
 
         <View style={styles.settingRow}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Hatırlatmaları Etkinleştir</Text>
+            <Text style={styles.settingLabel}>Enable Reminders</Text>
             <Text style={styles.settingDesc}>
-              Kapatırsanız, bir sonraki aktif pencere başlangıcında otomatik açılır.
+              If disabled, reminders will auto-enable at the next active window start.
             </Text>
           </View>
           <Switch
@@ -113,10 +113,10 @@ export default function SettingsScreen() {
           />
           <Text style={styles.statusText}>
             {inWindow && notificationsEnabled
-              ? 'Bildirimler aktif — aktif pencere içinde'
+              ? 'Notifications active — within active window'
               : inWindow
-                ? 'Bildirimler kapalı (manuel)'
-                : 'Aktif pencere dışında'
+                ? 'Notifications off (manual)'
+                : 'Outside active window'
             }
           </Text>
         </View>
@@ -124,14 +124,14 @@ export default function SettingsScreen() {
 
       {/* Active Window */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Aktif Pencere</Text>
+        <Text style={styles.sectionTitle}>Active Window</Text>
         <Text style={styles.sectionDesc}>
-          Sadece bu zaman aralığında bildirim gelir. Gece geçişli saatler desteklenir (ör. 13:00 - 02:00).
+          Notifications only arrive during this time range. Overnight ranges are supported (e.g. 13:00 - 02:00).
         </Text>
 
         <View style={styles.timeRow}>
           <View style={styles.timeInput}>
-            <Text style={styles.timeLabel}>Başlangıç</Text>
+            <Text style={styles.timeLabel}>Start</Text>
             <TextInput
               style={styles.input}
               value={windowStart}
@@ -143,7 +143,7 @@ export default function SettingsScreen() {
           </View>
           <Ionicons name="arrow-forward" size={20} color={Colors.textMuted} style={{ marginTop: 28 }} />
           <View style={styles.timeInput}>
-            <Text style={styles.timeLabel}>Bitiş</Text>
+            <Text style={styles.timeLabel}>End</Text>
             <TextInput
               style={styles.input}
               value={windowEnd}
@@ -160,15 +160,15 @@ export default function SettingsScreen() {
           onPress={handleSaveWindow}
           activeOpacity={0.8}
         >
-          <Text style={styles.saveWindowText}>Kaydet</Text>
+          <Text style={styles.saveWindowText}>Save</Text>
         </TouchableOpacity>
       </View>
 
       {/* Milestones */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Streak Hedefleri</Text>
+        <Text style={styles.sectionTitle}>Streak Goals</Text>
         <Text style={styles.sectionDesc}>
-          Streak sayacının rengi bu hedeflere ulaştıkça değişir.
+          The streak counter color changes as you reach these goals.
         </Text>
 
         <View style={styles.milestoneList}>
@@ -177,18 +177,18 @@ export default function SettingsScreen() {
             .map(([days, color]) => (
               <View key={days} style={styles.milestoneItem}>
                 <View style={[styles.milestoneColor, { backgroundColor: color }]} />
-                <Text style={styles.milestoneDays}>{days} gün</Text>
+                <Text style={styles.milestoneDays}>{days} days</Text>
                 <View style={styles.milestoneLine} />
                 <Text style={[styles.milestoneLabel, { color }]}>
                   {Number(days) === 7
-                    ? 'Başlangıç'
+                    ? 'Starter'
                     : Number(days) === 30
-                      ? 'Kararlı'
+                      ? 'Committed'
                       : Number(days) === 90
-                        ? 'Uzman'
+                        ? 'Expert'
                         : Number(days) === 180
-                          ? 'Altın'
-                          : 'Efsane'}
+                          ? 'Gold'
+                          : 'Legend'}
                 </Text>
               </View>
             ))}
@@ -197,13 +197,13 @@ export default function SettingsScreen() {
 
       {/* About */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Hakkında</Text>
+        <Text style={styles.sectionTitle}>About</Text>
         <View style={styles.aboutCard}>
           <Text style={styles.aboutAppName}>Flexify</Text>
           <Text style={styles.aboutVersion}>v1.0.0</Text>
           <Text style={styles.aboutDesc}>
-            Günlük esneme ve mobilite takipçisi.{'\n'}
-            Düzenli esne, streak'ini koru! 🧘
+            Daily stretch and mobility tracker.{'\n'}
+            Stretch daily, keep your streak! 🧘
           </Text>
         </View>
       </View>

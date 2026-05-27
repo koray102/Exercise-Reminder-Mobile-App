@@ -14,7 +14,7 @@ export const Config = {
 
   // Notification channel
   NOTIFICATION_CHANNEL_ID: 'flexify-reminders',
-  NOTIFICATION_CHANNEL_NAME: 'Egzersiz Hatırlatmaları',
+  NOTIFICATION_CHANNEL_NAME: 'Exercise Reminders',
 
   // Background task
   BACKGROUND_TASK_NAME: 'FLEXIFY_BACKGROUND_FETCH',

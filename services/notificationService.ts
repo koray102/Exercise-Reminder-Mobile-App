@@ -99,8 +99,8 @@ export async function scheduleCategoryNotification(
 
   const id = await Notifications.scheduleNotificationAsync({
     content: {
-      title: '🧘 Esneme Zamanı!',
-      body: `${category.title} — Egzersiz vakti geldi!`,
+      title: '🧘 Stretch Time!',
+      body: `${category.title} — Time to exercise!`,
       data: {
         categoryId: category.id,
         categoryTitle: category.title,
@@ -134,8 +134,8 @@ export async function snoozeNotification(
 
   const id = await Notifications.scheduleNotificationAsync({
     content: {
-      title: '🧘 Esneme Hatırlatması (Ertelenmiş)',
-      body: `${categoryTitle} — Kalan Erteleme Hakkı: ${Config.MAX_SNOOZE_COUNT - currentSnoozeCount - 1}`,
+      title: '🧘 Stretch Reminder (Snoozed)',
+      body: `${categoryTitle} — Snoozes remaining: ${Config.MAX_SNOOZE_COUNT - currentSnoozeCount - 1}`,
       data: {
         categoryId,
         categoryTitle,
@@ -162,17 +162,17 @@ export async function setupNotificationCategories(): Promise<void> {
   await Notifications.setNotificationCategoryAsync('stretch-reminder', [
     {
       identifier: 'START',
-      buttonTitle: 'Esnemeye Başla 🏃',
+      buttonTitle: 'Start Stretching 🏃',
       options: { opensAppToForeground: true },
     },
     {
       identifier: 'SNOOZE',
-      buttonTitle: 'Ertele ⏰',
+      buttonTitle: 'Snooze ⏰',
       options: { opensAppToForeground: false },
     },
     {
       identifier: 'SKIP',
-      buttonTitle: 'Atla ⏭️',
+      buttonTitle: 'Skip ⏭️',
       options: { opensAppToForeground: false, isDestructive: true },
     },
   ]);

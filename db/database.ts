@@ -65,6 +65,7 @@ async function initDatabase(database: SQLite.SQLiteDatabase): Promise<void> {
       youtube_link TEXT NOT NULL DEFAULT '',
       duration_seconds INTEGER NOT NULL DEFAULT 30,
       sort_order INTEGER NOT NULL DEFAULT 0,
+      is_two_sided INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
     );
 
@@ -97,6 +98,16 @@ async function initDatabase(database: SQLite.SQLiteDatabase): Promise<void> {
     if (!e.message?.includes('duplicate column')) {
       // Only log if it's NOT the expected "already exists" error
       console.log('[DB] sort_order column already exists');
+    }
+  }
+
+  // Migration: add is_two_sided column to exercises if it doesn't exist
+  try {
+    await database.runAsync('ALTER TABLE exercises ADD COLUMN is_two_sided INTEGER NOT NULL DEFAULT 0');
+    console.log('[DB] Migration: added is_two_sided column to exercises');
+  } catch (e: any) {
+    if (!e.message?.includes('duplicate column')) {
+      console.log('[DB] is_two_sided column already exists');
     }
   }
 }

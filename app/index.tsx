@@ -92,12 +92,12 @@ export default function Dashboard() {
 
     if (hasChanges) {
       Alert.alert(
-        'Değişiklikleri İptal Et',
-        'Yaptığınız değişiklikleri silmek istediğinizden emin misiniz?',
+        'Discard Changes',
+        'Are you sure you want to discard your changes?',
         [
-          { text: 'Hayır', style: 'cancel' },
+          { text: 'No', style: 'cancel' },
           {
-            text: 'Evet',
+            text: 'Yes',
             style: 'destructive',
             onPress: () => {
               setOrderedCategories([...categories]);
@@ -114,12 +114,12 @@ export default function Dashboard() {
 
   const handleDeleteCategory = (categoryId: string, categoryTitle: string) => {
     Alert.alert(
-      'Kategoriyi Sil',
-      `"${categoryTitle}" kategorisini ve içindeki tüm egzersizleri silmek istediğine emin misin?`,
+      'Delete Category',
+      `Are you sure you want to delete "${categoryTitle}" and all its exercises?`,
       [
-        { text: 'İptal', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Sil',
+          text: 'Delete',
           style: 'destructive',
           onPress: () => {
             // Defer deletion — only remove from local state
@@ -139,7 +139,7 @@ export default function Dashboard() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.accent} />
-        <Text style={styles.loadingText}>Yükleniyor...</Text>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
@@ -174,12 +174,12 @@ export default function Dashboard() {
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>
-          {editMode ? 'Düzenleme Modu' : 'Kategoriler'}
+          {editMode ? 'Edit Mode' : 'Categories'}
         </Text>
         {editMode ? (
           <TouchableOpacity onPress={saveEditMode} style={styles.doneButton}>
             <Ionicons name="checkmark-circle" size={20} color={Colors.accent} />
-            <Text style={styles.doneButtonText}>Bitti</Text>
+            <Text style={styles.doneButtonText}>Done</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
@@ -194,9 +194,9 @@ export default function Dashboard() {
       {!hasCategories && !editMode && (
         <View style={styles.emptyState}>
           <Ionicons name="fitness-outline" size={64} color={Colors.textMuted} />
-          <Text style={styles.emptyTitle}>Henüz kategori yok</Text>
+          <Text style={styles.emptyTitle}>No categories yet</Text>
           <Text style={styles.emptySubtitle}>
-            Sağ alttaki + butonuna basarak ilk{'\n'}egzersiz kategorini ekle!
+            Tap the + button in the bottom right{'\n'}to add your first exercise category!
           </Text>
         </View>
       )}
@@ -236,7 +236,7 @@ export default function Dashboard() {
       {editMode && (
         <TouchableOpacity style={styles.cancelEditButton} onPress={cancelEditMode} activeOpacity={0.8}>
           <Ionicons name="close-circle" size={18} color="#FFFFFF" />
-          <Text style={styles.cancelEditText}>Edit Modeden Çık</Text>
+          <Text style={styles.cancelEditText}>Exit Edit Mode</Text>
         </TouchableOpacity>
       )}
     </View>
