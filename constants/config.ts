@@ -1,6 +1,9 @@
 // App-wide configuration constants
 
 export const Config = {
+  // App version
+  APP_VERSION: '0.2',
+
   // Default active window
   DEFAULT_ACTIVE_WINDOW_START: '13:00',
   DEFAULT_ACTIVE_WINDOW_END: '02:00',

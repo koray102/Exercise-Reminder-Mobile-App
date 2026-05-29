@@ -17,6 +17,7 @@ import Animated, {
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/Colors';
+import { Config } from '../constants/config';
 import { useApp } from '../contexts/AppContext';
 import { Category, deleteCategory, updateCategoryOrder } from '../db/queries';
 import StreakDisplay from '../components/StreakDisplay';
@@ -232,6 +233,11 @@ export default function Dashboard() {
       {/* FAB — hide in edit mode */}
       {!editMode && <FAB onPress={() => router.push('/category/add')} />}
 
+      {/* Version label */}
+      {!editMode && (
+        <Text style={styles.versionLabel}>version: {Config.APP_VERSION}</Text>
+      )}
+
       {/* Cancel edit mode button */}
       {editMode && (
         <TouchableOpacity style={styles.cancelEditButton} onPress={cancelEditMode} activeOpacity={0.8}>
@@ -342,5 +348,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  versionLabel: {
+    position: 'absolute',
+    bottom: 28,
+    left: 20,
+    fontSize: 11,
+    color: Colors.textMuted,
+    opacity: 0.5,
+    fontWeight: '400',
   },
 });
