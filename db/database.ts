@@ -110,6 +110,16 @@ async function initDatabase(database: SQLite.SQLiteDatabase): Promise<void> {
       console.log('[DB] is_two_sided column already exists');
     }
   }
+
+  // Migration: add last_completed_at column to categories
+  try {
+    await database.runAsync('ALTER TABLE categories ADD COLUMN last_completed_at TEXT');
+    console.log('[DB] Migration: added last_completed_at column to categories');
+  } catch (e: any) {
+    if (!e.message?.includes('duplicate column')) {
+      console.log('[DB] last_completed_at column already exists');
+    }
+  }
 }
 
 export async function closeDatabase(): Promise<void> {

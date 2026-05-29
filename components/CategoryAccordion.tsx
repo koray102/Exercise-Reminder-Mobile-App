@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Linking, Pressable } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -40,6 +40,9 @@ export default function CategoryAccordion({
   const rotation = useSharedValue(0);
   const height = useSharedValue(0);
 
+  // Countdown state — remaining minutes until next reminder
+  const [remainingMinutes, setRemainingMinutes] = useState<number | null>(null);
+
   // Ripple state
   const rippleScale = useSharedValue(0);
   const rippleOpacity = useSharedValue(0);
@@ -48,6 +51,29 @@ export default function CategoryAccordion({
   const cardWidth = useSharedValue(300);
   const cardHeight = useSharedValue(80);
   const isLongPressActivated = useRef(false);
+
+  // Calculate and update remaining minutes
+  useEffect(() => {
+    const calculateRemaining = () => {
+      if (!category.last_completed_at) {
+        setRemainingMinutes(null);
+        return;
+      }
+
+      const lastCompleted = new Date(category.last_completed_at).getTime();
+      const now = Date.now();
+      const elapsedMinutes = (now - lastCompleted) / (1000 * 60);
+      const remaining = Math.ceil(category.interval_minutes - elapsedMinutes);
+
+      setRemainingMinutes(remaining);
+    };
+
+    calculateRemaining();
+
+    // Update every 30 seconds for smooth countdown
+    const interval = setInterval(calculateRemaining, 30000);
+    return () => clearInterval(interval);
+  }, [category.last_completed_at, category.interval_minutes]);
 
   const toggleExpand = () => {
     if (editMode || isLongPressActivated.current) return;
@@ -128,7 +154,24 @@ export default function CategoryAccordion({
     return `${seconds}s`;
   };
 
+  /**
+   * Format remaining minutes for the countdown badge.
+   * Shows hours and minutes if >= 60, otherwise just minutes.
+   */
+  const formatRemainingTime = (minutes: number): string => {
+    if (minutes >= 60) {
+      const h = Math.floor(minutes / 60);
+      const m = minutes % 60;
+      return m > 0 ? `${h}h ${m}m` : `${h}h`;
+    }
+    return `${minutes}m`;
+  };
+
   const totalDuration = exercises.reduce((sum, e) => sum + e.duration_seconds, 0);
+
+  // Determine countdown badge content
+  const isOverdue = remainingMinutes !== null && remainingMinutes <= 0;
+  const showCountdown = remainingMinutes !== null;
 
   return (
     <Animated.View
@@ -181,7 +224,22 @@ export default function CategoryAccordion({
             <View style={[styles.categoryDot, { backgroundColor: category.is_active ? Colors.accent : Colors.textMuted }]} />
           )}
           <View style={{ flex: 1 }}>
-            <Text style={styles.categoryTitle} numberOfLines={1}>{category.title}</Text>
+            <View style={styles.titleRow}>
+              <Text style={styles.categoryTitle} numberOfLines={1}>{category.title}</Text>
+              {/* Countdown Badge */}
+              {!editMode && showCountdown && (
+                <View style={[styles.countdownBadge, isOverdue && styles.countdownBadgeOverdue]}>
+                  <Ionicons
+                    name={isOverdue ? 'notifications' : 'time-outline'}
+                    size={11}
+                    color={isOverdue ? Colors.secondary : Colors.accent}
+                  />
+                  <Text style={[styles.countdownText, isOverdue && styles.countdownTextOverdue]}>
+                    {isOverdue ? 'Now!' : formatRemainingTime(remainingMinutes!)}
+                  </Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.categoryMeta}>
               {exercises.length} exercise{exercises.length !== 1 ? 's' : ''} · {formatDuration(totalDuration)} · Every {category.interval_minutes} min
             </Text>
@@ -340,10 +398,37 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
   categoryTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: Colors.textPrimary,
+    flexShrink: 1,
+  },
+  countdownBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.accentMuted,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  countdownBadgeOverdue: {
+    backgroundColor: 'rgba(255, 179, 71, 0.15)',
+  },
+  countdownText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.accent,
+  },
+  countdownTextOverdue: {
+    color: Colors.secondary,
   },
   categoryMeta: {
     fontSize: 12,

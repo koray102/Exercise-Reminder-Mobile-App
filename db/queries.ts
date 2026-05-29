@@ -9,6 +9,7 @@ export interface Category {
   is_active: number; // 0 or 1
   sort_order: number;
   created_at: string;
+  last_completed_at: string | null;
 }
 
 export interface Exercise {
@@ -65,12 +66,13 @@ export function addCategory(category: Omit<Category, 'created_at'>): Promise<voi
     console.log('[DB] addCategory:', category.id, category.title);
     const db = await getDatabase();
     await db.runAsync(
-      'INSERT INTO categories (id, title, interval_minutes, is_active, sort_order) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO categories (id, title, interval_minutes, is_active, sort_order, last_completed_at) VALUES (?, ?, ?, ?, ?, ?)',
       category.id,
       category.title,
       category.interval_minutes,
       category.is_active,
-      category.sort_order ?? 0
+      category.sort_order ?? 0,
+      category.last_completed_at ?? null
     );
     console.log('[DB] addCategory OK');
   });
@@ -117,6 +119,15 @@ export function updateCategoryOrder(orderedIds: string[]): Promise<void> {
       await db.runAsync('UPDATE categories SET sort_order = ? WHERE id = ?', i, orderedIds[i]);
     }
     console.log('[DB] updateCategoryOrder OK');
+  });
+}
+
+export function updateCategoryLastCompleted(categoryId: string, timestamp: string): Promise<void> {
+  return withDbMutex(async () => {
+    console.log('[DB] updateCategoryLastCompleted:', categoryId);
+    const db = await getDatabase();
+    await db.runAsync('UPDATE categories SET last_completed_at = ? WHERE id = ?', timestamp, categoryId);
+    console.log('[DB] updateCategoryLastCompleted OK');
   });
 }
 

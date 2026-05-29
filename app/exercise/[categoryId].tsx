@@ -19,6 +19,7 @@ import Animated, {
 import { Colors } from '../../constants/Colors';
 import { getExercisesByCategory, getCategoryById, Exercise } from '../../db/queries';
 import { onRoutineCompleted } from '../../services/streakService';
+import { scheduleAllNotifications } from '../../services/notificationService';
 import { useApp } from '../../contexts/AppContext';
 import { Config } from '../../constants/config';
 import TimerCircle from '../../components/TimerCircle';
@@ -28,7 +29,7 @@ type Phase = 'prep' | 'active' | 'finished' | 'completed';
 export default function ExerciseScreen() {
   const { categoryId } = useLocalSearchParams<{ categoryId: string }>();
   const router = useRouter();
-  const { refreshStreaks } = useApp();
+  const { refreshStreaks, refreshData } = useApp();
 
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [categoryTitle, setCategoryTitle] = useState('');
@@ -39,6 +40,13 @@ export default function ExerciseScreen() {
   const [currentSide, setCurrentSide] = useState<'left' | 'right'>('left');
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Ref to avoid stale closure — always has the latest exercises
+  const exercisesRef = useRef<Exercise[]>([]);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    exercisesRef.current = exercises;
+  }, [exercises]);
 
   // Load exercises
   useEffect(() => {
@@ -56,6 +64,7 @@ export default function ExerciseScreen() {
 
       const exList = await getExercisesByCategory(categoryId);
       setExercises(exList);
+      exercisesRef.current = exList; // Also set ref immediately
 
       if (exList.length === 0) {
         Alert.alert('Error', 'No exercises found in this category.');
@@ -64,38 +73,27 @@ export default function ExerciseScreen() {
       }
 
       setIsLoading(false);
-      startPrepPhase();
+      // Start prep phase — use ref for duration so we never get stale data
+      startPrepPhaseWithRef(exList);
     } catch (error) {
       console.error('Load error:', error);
       router.back();
     }
   };
 
-  const startPrepPhase = () => {
+  const startPrepPhaseWithRef = (exList: Exercise[]) => {
     setPhase('prep');
     setRemainingSeconds(Config.PREP_DURATION_SECONDS);
     startTimer(Config.PREP_DURATION_SECONDS, () => {
-      // Auto transition to active phase after prep
-      startActivePhase();
+      // Use provided exercise list directly — no stale closure
+      const duration = exList[0]?.duration_seconds ?? 30;
+      setPhase('active');
+      setRemainingSeconds(duration);
+      startTimer(duration, () => {
+        setPhase('finished');
+      });
     });
   };
-
-  const startActivePhase = useCallback(() => {
-    setPhase('active');
-    const duration = exercises[currentIndex]?.duration_seconds ?? 30;
-    setRemainingSeconds(duration);
-    startTimer(duration, () => {
-      // Timer done, show finish button (don't auto-skip)
-      setPhase('finished');
-    });
-  }, [currentIndex, exercises]);
-
-  // Effect to start active phase when exercises load
-  useEffect(() => {
-    if (exercises.length > 0 && phase === 'prep' && remainingSeconds === 0) {
-      startActivePhase();
-    }
-  }, [exercises, phase, remainingSeconds, startActivePhase]);
 
   const startTimer = (seconds: number, onComplete: () => void) => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -114,26 +112,39 @@ export default function ExerciseScreen() {
     }, 1000);
   };
 
+  /**
+   * Start a new exercise at the given index with prep → active → finished flow.
+   * Uses exercisesRef to avoid stale closure issues.
+   */
+  const startExerciseAtIndex = (index: number, side: 'left' | 'right' = 'left') => {
+    const ex = exercisesRef.current[index];
+    if (!ex) return;
+
+    setCurrentIndex(index);
+    setCurrentSide(side);
+    setPhase('prep');
+    setRemainingSeconds(Config.PREP_DURATION_SECONDS);
+
+    setTimeout(() => {
+      startTimer(Config.PREP_DURATION_SECONDS, () => {
+        const duration = ex.duration_seconds ?? 30;
+        setPhase('active');
+        setRemainingSeconds(duration);
+        startTimer(duration, () => {
+          setPhase('finished');
+        });
+      });
+    }, 300);
+  };
+
   const handleFinish = async () => {
     if (timerRef.current) clearInterval(timerRef.current);
 
-    const currentExercise = exercises[currentIndex];
+    const currentExercise = exercisesRef.current[currentIndex];
 
     // Two-sided: if just finished left side, switch to right
-    if (currentExercise.is_two_sided && currentSide === 'left') {
-      setCurrentSide('right');
-      setPhase('prep');
-      setRemainingSeconds(Config.PREP_DURATION_SECONDS);
-      setTimeout(() => {
-        startTimer(Config.PREP_DURATION_SECONDS, () => {
-          setPhase('active');
-          const duration = currentExercise.duration_seconds ?? 30;
-          setRemainingSeconds(duration);
-          startTimer(duration, () => {
-            setPhase('finished');
-          });
-        });
-      }, 300);
+    if (currentExercise?.is_two_sided && currentSide === 'left') {
+      startExerciseAtIndex(currentIndex, 'right');
       return;
     }
 
@@ -142,33 +153,24 @@ export default function ExerciseScreen() {
 
     const nextIndex = currentIndex + 1;
 
-    if (nextIndex >= exercises.length) {
+    if (nextIndex >= exercisesRef.current.length) {
       // All exercises completed!
       setPhase('completed');
 
       try {
-        const result = await onRoutineCompleted();
-        await refreshStreaks();
+        if (categoryId) {
+          const result = await onRoutineCompleted(categoryId);
+          await refreshStreaks();
+          await refreshData();
+          // Reschedule notifications with updated last_completed_at
+          await scheduleAllNotifications();
+        }
       } catch (error) {
         console.error('Streak update error:', error);
       }
     } else {
       // Move to next exercise
-      setCurrentIndex(nextIndex);
-      setPhase('prep');
-      setRemainingSeconds(Config.PREP_DURATION_SECONDS);
-
-      // Small delay for animation
-      setTimeout(() => {
-        startTimer(Config.PREP_DURATION_SECONDS, () => {
-          setPhase('active');
-          const duration = exercises[nextIndex]?.duration_seconds ?? 30;
-          setRemainingSeconds(duration);
-          startTimer(duration, () => {
-            setPhase('finished');
-          });
-        });
-      }, 300);
+      startExerciseAtIndex(nextIndex, 'left');
     }
   };
 

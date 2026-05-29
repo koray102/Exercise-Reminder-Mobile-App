@@ -12,7 +12,10 @@ import { Colors } from '../constants/Colors';
 import {
   requestNotificationPermissions,
   setupNotificationCategories,
+  scheduleAllNotifications,
+  setupNotificationListeners,
 } from '../services/notificationService';
+import { checkAndResetDailyStreak } from '../services/streakService';
 
 export {
   ErrorBoundary,
@@ -43,16 +46,36 @@ export default function RootLayout() {
   }, [fontsLoaded]);
 
   useEffect(() => {
-    // Initialize notifications
+    // Initialize notifications and schedule reminders
     async function initNotifications() {
       try {
-        await requestNotificationPermissions();
+        const granted = await requestNotificationPermissions();
         await setupNotificationCategories();
+        if (granted) {
+          await scheduleAllNotifications();
+        }
       } catch (e) {
         console.warn('Notification setup skipped (Expo Go limitation):', e);
       }
     }
     initNotifications();
+
+    // Set up notification listeners (received + response handlers)
+    let cleanup: (() => void) | undefined;
+    try {
+      cleanup = setupNotificationListeners();
+    } catch (e) {
+      console.warn('Notification listener setup skipped:', e);
+    }
+
+    // Check and reset daily streak
+    checkAndResetDailyStreak().catch(e =>
+      console.warn('Daily streak check failed:', e)
+    );
+
+    return () => {
+      cleanup?.();
+    };
   }, []);
 
   if (!fontsLoaded) {

@@ -1,4 +1,4 @@
-import { getStreaks, updateStreaks, incrementStretchCount, markSkippedToday, resetDailySkipFlag } from '../db/queries';
+import { getStreaks, updateStreaks, incrementStretchCount, markSkippedToday, resetDailySkipFlag, updateCategoryLastCompleted } from '../db/queries';
 
 /**
  * Get today's date as YYYY-MM-DD string
@@ -20,15 +20,19 @@ function isYesterday(dateStr: string): boolean {
 
 /**
  * Called when a user completes all exercises in a category routine.
+ * - Updates category's last_completed_at timestamp
  * - Increments total_stretch_count (never resets)
  * - Evaluates day streak
  */
-export async function onRoutineCompleted(): Promise<{
+export async function onRoutineCompleted(categoryId: string): Promise<{
   newStreak: number;
   totalCount: number;
 }> {
   const streaks = await getStreaks();
   const today = getTodayString();
+
+  // Update category's last completed timestamp
+  await updateCategoryLastCompleted(categoryId, new Date().toISOString());
 
   // Always increment total stretch count
   await incrementStretchCount();

@@ -49,7 +49,8 @@ export default function EditCategory() {
   const { refreshData } = useApp();
 
   const [title, setTitle] = useState('');
-  const [intervalMinutes, setIntervalMinutes] = useState('60');
+  const [intervalHours, setIntervalHours] = useState('1');
+  const [intervalMinutes, setIntervalMinutes] = useState('0');
   const [exercises, setExercises] = useState<ExerciseForm[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -69,7 +70,11 @@ export default function EditCategory() {
       }
 
       setTitle(category.title);
-      setIntervalMinutes(String(category.interval_minutes));
+      // Split interval_minutes into hours and minutes
+      const hours = Math.floor(category.interval_minutes / 60);
+      const mins = category.interval_minutes % 60;
+      setIntervalHours(String(hours));
+      setIntervalMinutes(String(mins));
 
       const exList = await getExercisesByCategory(id);
       setExercises(
@@ -113,10 +118,17 @@ export default function EditCategory() {
       return;
     }
 
+    // Calculate total interval in minutes
+    const totalIntervalMinutes = (parseInt(intervalHours) || 0) * 60 + (parseInt(intervalMinutes) || 0);
+    if (totalIntervalMinutes <= 0) {
+      Alert.alert('Error', 'Reminder interval must be at least 1 minute.');
+      return;
+    }
+
     setIsSaving(true);
 
     try {
-      await updateCategory(id, title.trim(), parseInt(intervalMinutes) || 60);
+      await updateCategory(id, title.trim(), totalIntervalMinutes);
 
       // Delete all existing exercises and re-add
       await deleteExercisesByCategory(id);
@@ -125,14 +137,14 @@ export default function EditCategory() {
       for (let i = 0; i < validExercises.length; i++) {
         const ex = validExercises[i];
         const durationSec =
-          (parseInt(ex.duration_minutes) || 0) * 60 + (parseInt(ex.duration_seconds) || 30);
+          (parseInt(ex.duration_minutes) || 0) * 60 + (parseInt(ex.duration_seconds) || 0);
         await addExercise({
           id: ex.id || generateId(),
           category_id: id,
           name: ex.name?.trim() || '',
           description: ex.description?.trim() || '',
           youtube_link: ex.youtube_link?.trim() || '',
-          duration_seconds: durationSec,
+          duration_seconds: durationSec > 0 ? durationSec : 30, // default 30s if nothing entered
           sort_order: i,
           is_two_sided: ex.is_two_sided ? 1 : 0,
         });
@@ -205,15 +217,31 @@ export default function EditCategory() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Reminder Interval (minutes)</Text>
-            <TextInput
-              style={styles.input}
-              value={intervalMinutes}
-              onChangeText={setIntervalMinutes}
-              keyboardType="number-pad"
-              placeholder="60"
-              placeholderTextColor={Colors.textMuted}
-            />
+            <Text style={styles.inputLabel}>Reminder Interval</Text>
+            <View style={styles.durationRow}>
+              <View style={styles.durationInput}>
+                <Text style={styles.durationLabel}>Hours</Text>
+                <TextInput
+                  style={styles.input}
+                  value={intervalHours}
+                  onChangeText={setIntervalHours}
+                  keyboardType="number-pad"
+                  placeholder="1"
+                  placeholderTextColor={Colors.textMuted}
+                />
+              </View>
+              <View style={styles.durationInput}>
+                <Text style={styles.durationLabel}>Minutes</Text>
+                <TextInput
+                  style={styles.input}
+                  value={intervalMinutes}
+                  onChangeText={setIntervalMinutes}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={Colors.textMuted}
+                />
+              </View>
+            </View>
           </View>
         </View>
 
@@ -505,7 +533,7 @@ const styles = StyleSheet.create({
   twoSidedLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.text,
+    color: Colors.textPrimary,
   },
   twoSidedDesc: {
     fontSize: 12,
