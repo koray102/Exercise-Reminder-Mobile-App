@@ -15,7 +15,7 @@ import {
   scheduleAllNotifications,
   setupNotificationListeners,
 } from '../services/notificationService';
-import { checkAndResetDailyStreak } from '../services/streakService';
+import { checkAndResetDailyStreak, checkAllGracePeriods } from '../services/streakService';
 
 export {
   ErrorBoundary,
@@ -47,18 +47,25 @@ export default function RootLayout() {
 
   useEffect(() => {
     // Initialize notifications and schedule reminders
-    async function initNotifications() {
+    async function initApp() {
       try {
         const granted = await requestNotificationPermissions();
         await setupNotificationCategories();
+
+        // Check grace periods that may have expired while app was closed
+        await checkAllGracePeriods();
+
+        // Check and reset daily streak
+        await checkAndResetDailyStreak();
+
         if (granted) {
           await scheduleAllNotifications();
         }
       } catch (e) {
-        console.warn('Notification setup skipped (Expo Go limitation):', e);
+        console.warn('App init error:', e);
       }
     }
-    initNotifications();
+    initApp();
 
     // Set up notification listeners (received + response handlers)
     let cleanup: (() => void) | undefined;
@@ -67,11 +74,6 @@ export default function RootLayout() {
     } catch (e) {
       console.warn('Notification listener setup skipped:', e);
     }
-
-    // Check and reset daily streak
-    checkAndResetDailyStreak().catch(e =>
-      console.warn('Daily streak check failed:', e)
-    );
 
     return () => {
       cleanup?.();

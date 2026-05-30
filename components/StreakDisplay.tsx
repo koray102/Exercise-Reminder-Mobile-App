@@ -15,10 +15,12 @@ import { Config } from '../constants/config';
 interface StreakDisplayProps {
   currentStreak: number;
   totalCount: number;
+  isTodayCompleted?: boolean;
 }
 
-export default function StreakDisplay({ currentStreak, totalCount }: StreakDisplayProps) {
-  const streakColor = getStreakColor(currentStreak);
+export default function StreakDisplay({ currentStreak, totalCount, isTodayCompleted = false }: StreakDisplayProps) {
+  // Determine color based on completion status
+  const streakColor = isTodayCompleted ? '#00D4AA' : '#FFFFFF';
   const scale = useSharedValue(0);
   const glow = useSharedValue(0);
   const counterScale = useSharedValue(0);
@@ -26,24 +28,37 @@ export default function StreakDisplay({ currentStreak, totalCount }: StreakDispl
   useEffect(() => {
     scale.value = withSpring(1, { damping: 12, stiffness: 100 });
     counterScale.value = withSpring(1, { damping: 10, stiffness: 80, mass: 0.8 });
-    glow.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 2000 }),
-        withTiming(0, { duration: 2000 })
-      ),
-      -1,
-      true
-    );
-  }, [currentStreak]);
+
+    if (!isTodayCompleted) {
+      glow.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 2000 }),
+          withTiming(0, { duration: 4000 })
+        ),
+        -1,
+        true
+      );
+    } else {
+      glow.value = withTiming(0.5, { duration: 500 });
+    }
+  }, [currentStreak, isTodayCompleted]);
 
   const animatedContainerStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
 
-  const animatedGlowStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(glow.value, [0, 1], [0.3, 0.8]),
-    transform: [{ scale: interpolate(glow.value, [0, 1], [1, 1.15]) }],
-  }));
+  const animatedGlowStyle = useAnimatedStyle(() => {
+    if (isTodayCompleted) {
+      return {
+        opacity: interpolate(glow.value, [0, 1], [0.3, 0.8]),
+        transform: [{ scale: 1 }],
+      };
+    }
+    return {
+      opacity: interpolate(glow.value, [0, 1], [0.1, 0.5]),
+      transform: [{ scale: interpolate(glow.value, [0, 1], [0.85, 1]) }],
+    };
+  });
 
   const animatedCounterStyle = useAnimatedStyle(() => ({
     transform: [{ scale: counterScale.value }],

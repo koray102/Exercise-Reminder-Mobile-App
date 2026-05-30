@@ -17,7 +17,7 @@ import Animated, {
   SlideInRight,
 } from 'react-native-reanimated';
 import { Colors } from '../../constants/Colors';
-import { getExercisesByCategory, getCategoryById, Exercise } from '../../db/queries';
+import { getExercisesByCategory, getCategoryById, Exercise, updateCategoryLastCompleted } from '../../db/queries';
 import { onRoutineCompleted } from '../../services/streakService';
 import { scheduleAllNotifications } from '../../services/notificationService';
 import { useApp } from '../../contexts/AppContext';
@@ -73,6 +73,11 @@ export default function ExerciseScreen() {
       }
 
       setIsLoading(false);
+
+      // Mark category as started — stops grace period and restarts interval
+      await updateCategoryLastCompleted(categoryId, new Date().toISOString());
+      await refreshData();
+
       // Start prep phase — use ref for duration so we never get stale data
       startPrepPhaseWithRef(exList);
     } catch (error) {

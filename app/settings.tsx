@@ -200,7 +200,7 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>About</Text>
         <View style={styles.aboutCard}>
           <Text style={styles.aboutAppName}>Flexify</Text>
-          <Text style={styles.aboutVersion}>v1.0.0</Text>
+          <Text style={styles.aboutVersion}>v{Config.APP_VERSION}</Text>
           <Text style={styles.aboutDesc}>
             Daily stretch and mobility tracker.{'\n'}
             Stretch daily, keep your streak! 🧘

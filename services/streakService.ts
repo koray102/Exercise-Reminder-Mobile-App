@@ -1,11 +1,22 @@
-import { getStreaks, updateStreaks, incrementStretchCount, markSkippedToday, resetDailySkipFlag, updateCategoryLastCompleted } from '../db/queries';
+import { getStreaks, updateStreaks, incrementStretchCount, markSkippedToday, resetDailySkipFlag, updateCategoryLastCompleted, getAllCategories } from '../db/queries';
+import { Config } from '../constants/config';
 
 /**
- * Get today's date as YYYY-MM-DD string
+ * Get today's date as YYYY-MM-DD string (Local Time)
  */
-function getTodayString(): string {
+export function getTodayString(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Check if an ISO date string matches today's Local Time date
+ */
+export function isDateStringToday(isoString: string | null): boolean {
+  if (!isoString) return false;
+  const d = new Date(isoString);
+  const localDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return localDateStr === getTodayString();
 }
 
 /**
@@ -45,25 +56,34 @@ export async function onRoutineCompleted(categoryId: string): Promise<{
     };
   }
 
+  // Check if ALL active categories are completed TODAY (using Local Time)
+  const categories = await getAllCategories();
+  const activeCategories = categories.filter(c => c.is_active);
+  const allCompletedToday = activeCategories.length > 0 && activeCategories.every(c => {
+    return isDateStringToday(c.last_completed_at);
+  });
+
   let newStreak = streaks.current_day_streak;
 
-  if (streaks.last_completed_date === today) {
-    // Already completed today, streak doesn't change
-  } else if (streaks.last_completed_date && isYesterday(streaks.last_completed_date)) {
-    // Completed yesterday → continue streak
-    newStreak += 1;
-  } else if (!streaks.last_completed_date) {
-    // First ever completion
-    newStreak = 1;
-  } else {
-    // Missed a day → reset streak
-    newStreak = 1;
-  }
+  if (allCompletedToday) {
+    if (streaks.last_completed_date === today) {
+      // Zaten bugün tamamlanmış, streak artmaz
+    } else if (streaks.last_completed_date && isYesterday(streaks.last_completed_date)) {
+      // Dün yapılmış → streak devam
+      newStreak += 1;
+    } else if (!streaks.last_completed_date) {
+      // İlk defa
+      newStreak = 1;
+    } else {
+      // Ara verilmiş → 1'den başla
+      newStreak = 1;
+    }
 
-  await updateStreaks({
-    current_day_streak: newStreak,
-    last_completed_date: today,
-  });
+    await updateStreaks({
+      current_day_streak: newStreak,
+      last_completed_date: today,
+    });
+  }
 
   return {
     newStreak,
@@ -72,7 +92,53 @@ export async function onRoutineCompleted(categoryId: string): Promise<{
 }
 
 /**
- * Called when user presses "Atla" (Skip) on a reminder.
+ * Called when a grace period expires for a category.
+ * - Resets streak to 0
+ * - Sets last_completed_at = now to restart the interval cycle
+ */
+export async function onGraceExpired(categoryId: string): Promise<void> {
+  console.log('[Streak] Grace expired for category:', categoryId);
+  // Ceza kaldirildi: Artık grace period dolsa da streak bozulmuyor. Sadece döngü baştan başlıyor.
+  await updateCategoryLastCompleted(categoryId, new Date().toISOString());
+}
+
+/**
+ * Check all categories for expired grace periods.
+ * If any category's grace period has expired (elapsed >= interval + grace),
+ * reset streak and restart the cycle.
+ * 
+ * Call this on app open and screen focus to catch expirations
+ * that happened while the app was closed.
+ */
+export async function checkAllGracePeriods(): Promise<boolean> {
+  let anyExpired = false;
+
+  try {
+    const categories = await getAllCategories();
+    const now = Date.now();
+
+    for (const category of categories) {
+      if (!category.is_active || !category.last_completed_at) continue;
+
+      const lastCompleted = new Date(category.last_completed_at).getTime();
+      const elapsedMinutes = (now - lastCompleted) / (1000 * 60);
+      const graceDeadline = category.interval_minutes + Config.GRACE_PERIOD_MINUTES;
+
+      if (elapsedMinutes >= graceDeadline) {
+        // Grace period has expired — reset streak and restart cycle
+        await onGraceExpired(category.id);
+        anyExpired = true;
+      }
+    }
+  } catch (error) {
+    console.error('[Streak] checkAllGracePeriods error:', error);
+  }
+
+  return anyExpired;
+}
+
+/**
+ * Called when user presses "Skip" on a reminder.
  * - Resets current_day_streak to 0
  * - Marks that a skip happened today
  */

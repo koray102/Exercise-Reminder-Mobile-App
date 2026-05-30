@@ -2,7 +2,7 @@
 
 export const Config = {
   // App version
-  APP_VERSION: '0.2',
+  APP_VERSION: '0.4',
 
   // Default active window
   DEFAULT_ACTIVE_WINDOW_START: '13:00',
@@ -11,9 +11,9 @@ export const Config = {
   // Timer
   PREP_DURATION_SECONDS: 5,
 
-  // Snooze
-  MAX_SNOOZE_COUNT: 3,
-  SNOOZE_DURATION_MINUTES: 5,
+  // Grace period — how long user has to START the first exercise
+  // after a reminder fires before streak resets (in minutes)
+  GRACE_PERIOD_MINUTES: 15,
 
   // Notification channel
   NOTIFICATION_CHANNEL_ID: 'flexify-reminders',

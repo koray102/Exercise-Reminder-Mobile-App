@@ -17,9 +17,10 @@ import Animated, {
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/Colors';
-import { Config } from '../constants/config';
 import { useApp } from '../contexts/AppContext';
 import { Category, deleteCategory, updateCategoryOrder } from '../db/queries';
+import { checkAllGracePeriods, isDateStringToday } from '../services/streakService';
+import { scheduleAllNotifications } from '../services/notificationService';
 import StreakDisplay from '../components/StreakDisplay';
 import CategoryAccordion from '../components/CategoryAccordion';
 import FAB from '../components/FAB';
@@ -27,7 +28,7 @@ import FAB from '../components/FAB';
 
 export default function Dashboard() {
   const router = useRouter();
-  const { state, refreshData } = useApp();
+  const { state, refreshData, refreshStreaks } = useApp();
   const { categories, exercisesByCategory, streaks, isLoading } = state;
 
   const [editMode, setEditMode] = useState(false);
@@ -53,10 +54,18 @@ export default function Dashboard() {
     });
   }, [editMode]);
 
-  // Refresh data when screen comes into focus
+  // Refresh data and check grace periods when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      refreshData();
+      const checkGrace = async () => {
+        const anyExpired = await checkAllGracePeriods();
+        if (anyExpired) {
+          await refreshStreaks();
+          await scheduleAllNotifications();
+        }
+        await refreshData();
+      };
+      checkGrace();
       setEditMode(false);
     }, [])
   );
@@ -148,6 +157,12 @@ export default function Dashboard() {
   const displayCategories = editMode ? orderedCategories : categories;
   const hasCategories = displayCategories.length > 0;
 
+  // Calculate if daily streak condition is met (all active categories completed today)
+  const activeCategories = categories.filter(c => c.is_active);
+  const isTodayCompleted = activeCategories.length > 0 && activeCategories.every(c => {
+    return isDateStringToday(c.last_completed_at);
+  });
+
   const renderItem = ({ item, drag, isActive }: RenderItemParams<Category>) => (
     <ScaleDecorator>
       <CategoryAccordion
@@ -170,6 +185,7 @@ export default function Dashboard() {
         <StreakDisplay
           currentStreak={streaks?.current_day_streak ?? 0}
           totalCount={streaks?.total_stretch_count ?? 0}
+          isTodayCompleted={isTodayCompleted}
         />
       )}
 
@@ -232,11 +248,6 @@ export default function Dashboard() {
 
       {/* FAB — hide in edit mode */}
       {!editMode && <FAB onPress={() => router.push('/category/add')} />}
-
-      {/* Version label */}
-      {!editMode && (
-        <Text style={styles.versionLabel}>version: {Config.APP_VERSION}</Text>
-      )}
 
       {/* Cancel edit mode button */}
       {editMode && (
@@ -348,14 +359,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
-  },
-  versionLabel: {
-    position: 'absolute',
-    bottom: 28,
-    left: 20,
-    fontSize: 11,
-    color: Colors.textMuted,
-    opacity: 0.5,
-    fontWeight: '400',
   },
 });

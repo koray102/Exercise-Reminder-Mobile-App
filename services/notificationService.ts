@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { Config } from '../constants/config';
-import { getAllCategories, getSettings, Category } from '../db/queries';
+import { getAllCategories, getSettings, Category, updateCategoryLastCompleted, updateStreaks } from '../db/queries';
 
 // Configure how notifications appear when app is in foreground
 Notifications.setNotificationHandler({
@@ -57,31 +57,26 @@ export function isWithinActiveWindow(startStr: string, endStr: string): boolean 
   const endMinutes = endH * 60 + endM;
 
   if (startMinutes <= endMinutes) {
-    // Normal range (e.g., 09:00 - 17:00)
     return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
   } else {
-    // Overnight range (e.g., 13:00 - 02:00)
     return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
   }
 }
 
 /**
  * Schedule notifications for all active categories.
- * Uses real device clock — notifications fire at exact wall-clock times
- * regardless of whether the app is open or not.
+ * For each category, schedules:
+ *   1. Reminder at interval time: "15 minutes to start!"
+ *   2. Warning at interval + 10 min: "5 minutes remaining!"
+ *   3. Expiry at interval + 15 min: "Time's up! Streak reset."
  */
 export async function scheduleAllNotifications(): Promise<void> {
-  // Cancel all existing scheduled notifications
   await Notifications.cancelAllScheduledNotificationsAsync();
 
   const settings = await getSettings();
-
-  // Check if notifications are enabled
   if (!settings.manual_toggle_state) return;
 
-  // Check if we're in the active window
   if (!isWithinActiveWindow(settings.active_window_start, settings.active_window_end)) {
-    // Schedule a notification at the start of the next active window to wake us up
     await scheduleWindowStartNotification(settings.active_window_start);
     return;
   }
@@ -90,17 +85,15 @@ export async function scheduleAllNotifications(): Promise<void> {
   const activeCategories = categories.filter(c => c.is_active);
 
   for (const category of activeCategories) {
-    await scheduleCategoryNotification(category);
+    await scheduleCategoryNotifications(category);
   }
 }
 
 /**
  * Schedule a notification at the start of the next active window.
- * This ensures notifications resume even if the app isn't opened.
  */
 async function scheduleWindowStartNotification(startStr: string): Promise<void> {
   const [startH, startM] = startStr.split(':').map(Number);
-
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
@@ -116,204 +109,194 @@ async function scheduleWindowStartNotification(startStr: string): Promise<void> 
       },
     });
   } catch (e) {
-    console.warn('[Notifications] Failed to schedule window start notification:', e);
+    console.warn('[Notifications] Failed to schedule window start:', e);
   }
 }
 
 /**
- * Schedule a single notification for a category.
- * Uses TIME_INTERVAL trigger which relies on device clock.
+ * Schedule grace period notifications for a single category.
+ * Calculates delay based on real wall-clock time since last completion.
  */
-export async function scheduleCategoryNotification(
-  category: Category,
-  delayMinutes?: number
-): Promise<string> {
-  const delay = delayMinutes ?? category.interval_minutes;
+async function scheduleCategoryNotifications(category: Category): Promise<void> {
+  const intervalSeconds = category.interval_minutes * 60;
+  const graceSeconds = Config.GRACE_PERIOD_MINUTES * 60;
 
-  // Calculate actual delay: if category was recently completed, subtract elapsed time
-  let actualDelaySeconds = delay * 60;
-
-  if (!delayMinutes && category.last_completed_at) {
+  // Calculate how far into the cycle we are
+  let elapsedSeconds = 0;
+  if (category.last_completed_at) {
     const lastCompleted = new Date(category.last_completed_at).getTime();
-    const now = Date.now();
-    const elapsedSeconds = Math.floor((now - lastCompleted) / 1000);
-    const intervalSeconds = category.interval_minutes * 60;
-    const remaining = intervalSeconds - elapsedSeconds;
-
-    if (remaining > 0) {
-      actualDelaySeconds = remaining;
-    } else {
-      // Already overdue — notify in 10 seconds
-      actualDelaySeconds = 10;
-    }
+    elapsedSeconds = Math.floor((Date.now() - lastCompleted) / 1000);
   }
 
-  // Minimum 1 second delay
-  actualDelaySeconds = Math.max(actualDelaySeconds, 1);
+  // If already past grace expiry, the check on app focus will handle reset.
+  // Schedule fresh notifications for the next cycle.
+  if (elapsedSeconds >= intervalSeconds + graceSeconds) {
+    // Past grace — schedule for the full interval from now
+    await scheduleGraceNotifications(category, intervalSeconds, graceSeconds);
+    return;
+  }
 
+  // If still in idle phase (interval hasn't expired yet)
+  if (elapsedSeconds < intervalSeconds) {
+    const remainingToInterval = intervalSeconds - elapsedSeconds;
+    await scheduleGraceNotifications(category, remainingToInterval, graceSeconds);
+    return;
+  }
+
+  // If currently in grace period (interval expired, grace not yet expired)
+  const elapsedGrace = elapsedSeconds - intervalSeconds;
+  const remainingGrace = graceSeconds - elapsedGrace;
+
+  // Schedule only the remaining grace notifications
+  if (remainingGrace > 0) {
+    // Warning at 5 min remaining (if not already past)
+    const fiveMinMark = graceSeconds - 5 * 60; // seconds into grace when 5 min remain
+    const warningDelay = (fiveMinMark - elapsedGrace);
+    if (warningDelay > 1) {
+      await scheduleNotification(
+        category,
+        `⚠️ ${category.title} — 5 minutes remaining!`,
+        'grace_warning',
+        warningDelay
+      );
+    }
+
+    // Expiry notification
+    if (remainingGrace > 1) {
+      await scheduleNotification(
+        category,
+        `❌ ${category.title} — Time's up! Streak reset.`,
+        'grace_expired',
+        remainingGrace
+      );
+    }
+  }
+}
+
+/**
+ * Schedule the full set of grace notifications from a given delay.
+ * @param delayToInterval - seconds until interval expires
+ * @param graceSeconds - total grace period in seconds
+ */
+async function scheduleGraceNotifications(
+  category: Category,
+  delayToInterval: number,
+  graceSeconds: number
+): Promise<void> {
+  // 1. Main reminder when interval expires
+  if (delayToInterval > 0) {
+    await scheduleNotification(
+      category,
+      `🧘 ${category.title} — ${Config.GRACE_PERIOD_MINUTES} minutes to start!`,
+      'grace_start',
+      delayToInterval
+    );
+  }
+
+  // 2. Warning at 5 minutes remaining
+  const warningDelay = delayToInterval + graceSeconds - 5 * 60;
+  if (warningDelay > 1) {
+    await scheduleNotification(
+      category,
+      `⚠️ ${category.title} — 5 minutes remaining!`,
+      'grace_warning',
+      warningDelay
+    );
+  }
+
+  // 3. Expiry notification
+  const expiryDelay = delayToInterval + graceSeconds;
+  if (expiryDelay > 1) {
+    await scheduleNotification(
+      category,
+      `❌ ${category.title} — Time's up! Streak reset.`,
+      'grace_expired',
+      expiryDelay
+    );
+  }
+}
+
+/**
+ * Schedule a single notification (no action buttons).
+ */
+async function scheduleNotification(
+  category: Category,
+  body: string,
+  type: string,
+  delaySeconds: number
+): Promise<string> {
   const id = await Notifications.scheduleNotificationAsync({
     content: {
       title: '🧘 Stretch Time!',
-      body: `${category.title} — Time to exercise!`,
+      body,
       data: {
         categoryId: category.id,
         categoryTitle: category.title,
         intervalMinutes: category.interval_minutes,
-        type: 'reminder',
-        snoozeCount: 0,
+        type,
       },
-      categoryIdentifier: 'stretch-reminder',
       sound: 'default',
+      // No categoryIdentifier — no action buttons
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds: actualDelaySeconds,
-      repeats: false, // We manually reschedule for more control
-    },
-  });
-
-  return id;
-}
-
-/**
- * Snooze a notification (reschedule for 5 minutes later)
- */
-export async function snoozeNotification(
-  categoryId: string,
-  categoryTitle: string,
-  currentSnoozeCount: number
-): Promise<string | null> {
-  if (currentSnoozeCount >= Config.MAX_SNOOZE_COUNT) {
-    return null; // No more snoozes
-  }
-
-  const id = await Notifications.scheduleNotificationAsync({
-    content: {
-      title: '🧘 Stretch Reminder (Snoozed)',
-      body: `${categoryTitle} — Snoozes remaining: ${Config.MAX_SNOOZE_COUNT - currentSnoozeCount - 1}`,
-      data: {
-        categoryId,
-        categoryTitle,
-        type: 'reminder',
-        snoozeCount: currentSnoozeCount + 1,
-      },
-      categoryIdentifier: 'stretch-reminder',
-      sound: 'default',
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds: Config.SNOOZE_DURATION_MINUTES * 60,
+      seconds: Math.max(delaySeconds, 1),
       repeats: false,
     },
   });
-
   return id;
 }
 
 /**
- * Set up notification categories with action buttons (Android)
+ * Set up notification categories — no action buttons.
+ * Keep the function for backwards compatibility but register empty actions.
  */
 export async function setupNotificationCategories(): Promise<void> {
-  await Notifications.setNotificationCategoryAsync('stretch-reminder', [
-    {
-      identifier: 'START',
-      buttonTitle: 'Start Stretching 🏃',
-      options: { opensAppToForeground: true },
-    },
-    {
-      identifier: 'SNOOZE',
-      buttonTitle: 'Snooze ⏰',
-      options: { opensAppToForeground: false },
-    },
-    {
-      identifier: 'SKIP',
-      buttonTitle: 'Skip ⏭️',
-      options: { opensAppToForeground: false, isDestructive: true },
-    },
-  ]);
+  // No action buttons — user just sees the notification
 }
 
 /**
- * Set up notification listeners for received & response events.
- * Call this once in _layout.tsx on app start.
- * 
- * - When a reminder notification is received (fires), automatically
- *   reschedule the next one for the same category (using device clock).
- * - When a user taps an action button, handle SNOOZE and SKIP.
+ * Set up notification listeners.
+ * - grace_expired: reset streak and restart cycle
+ * - grace_start: reschedule next cycle after grace
+ * - window_start: schedule all notifications
  */
 export function setupNotificationListeners(): () => void {
-  // When a notification is received (fires in foreground or background)
   const receivedSubscription = Notifications.addNotificationReceivedListener(
     async (notification) => {
       const data = notification.request.content.data as any;
 
-      if (data?.type === 'reminder' && data?.categoryId) {
-        // Reschedule the next notification for this category
+      if (data?.type === 'grace_expired' && data?.categoryId) {
+        // Grace period expired — reset streak and restart cycle
         try {
-          const settings = await getSettings();
-          if (settings.manual_toggle_state && isWithinActiveWindow(settings.active_window_start, settings.active_window_end)) {
-            const intervalMinutes = data.intervalMinutes || 60;
-            await Notifications.scheduleNotificationAsync({
-              content: {
-                title: '🧘 Stretch Time!',
-                body: `${data.categoryTitle} — Time to exercise!`,
-                data: {
-                  categoryId: data.categoryId,
-                  categoryTitle: data.categoryTitle,
-                  intervalMinutes: intervalMinutes,
-                  type: 'reminder',
-                  snoozeCount: 0,
-                },
-                categoryIdentifier: 'stretch-reminder',
-                sound: 'default',
-              },
-              trigger: {
-                type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-                seconds: intervalMinutes * 60,
-                repeats: false,
-              },
-            });
-          }
+          // Reset streak to 0
+          await updateStreaks({ current_day_streak: 0 });
+          // Restart cycle by setting last_completed_at to now
+          await updateCategoryLastCompleted(data.categoryId, new Date().toISOString());
+          // Reschedule notifications for the new cycle
+          await scheduleAllNotifications();
         } catch (e) {
-          console.warn('[Notifications] Failed to reschedule:', e);
+          console.warn('[Notifications] Grace expiry handling failed:', e);
         }
       }
 
       if (data?.type === 'window_start') {
-        // Active window just started — schedule all category notifications
         try {
           await scheduleAllNotifications();
         } catch (e) {
-          console.warn('[Notifications] Failed to schedule on window start:', e);
+          console.warn('[Notifications] Window start scheduling failed:', e);
         }
       }
     }
   );
 
-  // When user interacts with a notification action button
+  // Response listener — just opens the app, no special actions
   const responseSubscription = Notifications.addNotificationResponseReceivedListener(
-    async (response) => {
-      const data = response.notification.request.content.data as any;
-      const actionId = response.actionIdentifier;
-
-      if (data?.type !== 'reminder') return;
-
-      if (actionId === 'SNOOZE') {
-        await snoozeNotification(
-          data.categoryId,
-          data.categoryTitle,
-          data.snoozeCount || 0
-        );
-      } else if (actionId === 'SKIP') {
-        // Skip — import dynamically to avoid circular dependency
-        const { onReminderSkipped } = require('./streakService');
-        await onReminderSkipped();
-      }
-      // 'START' or default tap opens the app — no extra handling needed
+    async (_response) => {
+      // Tapping any notification just opens the app — no button handling needed
     }
   );
 
-  // Return cleanup function
   return () => {
     receivedSubscription.remove();
     responseSubscription.remove();

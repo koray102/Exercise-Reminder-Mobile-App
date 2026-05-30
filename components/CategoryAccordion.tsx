@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/Colors';
+import { Config } from '../constants/config';
 import { Category, Exercise } from '../db/queries';
 
 interface CategoryAccordionProps {
@@ -40,8 +41,10 @@ export default function CategoryAccordion({
   const rotation = useSharedValue(0);
   const height = useSharedValue(0);
 
-  // Countdown state — remaining minutes until next reminder
+  // Countdown state
   const [remainingMinutes, setRemainingMinutes] = useState<number | null>(null);
+  // 'idle' = green (counting to interval), 'grace' = red (counting to grace expiry)
+  const [countdownMode, setCountdownMode] = useState<'idle' | 'grace'>('idle');
 
   // Ripple state
   const rippleScale = useSharedValue(0);
@@ -52,26 +55,41 @@ export default function CategoryAccordion({
   const cardHeight = useSharedValue(80);
   const isLongPressActivated = useRef(false);
 
-  // Calculate and update remaining minutes
+  // Calculate and update remaining minutes with 3-state logic
   useEffect(() => {
     const calculateRemaining = () => {
       if (!category.last_completed_at) {
         setRemainingMinutes(null);
+        setCountdownMode('idle');
         return;
       }
 
       const lastCompleted = new Date(category.last_completed_at).getTime();
       const now = Date.now();
       const elapsedMinutes = (now - lastCompleted) / (1000 * 60);
-      const remaining = Math.ceil(category.interval_minutes - elapsedMinutes);
+      const intervalMin = category.interval_minutes;
+      const graceDeadline = intervalMin + Config.GRACE_PERIOD_MINUTES;
 
-      setRemainingMinutes(remaining);
+      if (elapsedMinutes < intervalMin) {
+        // IDLE — interval hasn't expired yet (green badge)
+        setCountdownMode('idle');
+        setRemainingMinutes(Math.ceil(intervalMin - elapsedMinutes));
+      } else if (elapsedMinutes < graceDeadline) {
+        // GRACE — interval expired, grace counting down (red badge)
+        setCountdownMode('grace');
+        setRemainingMinutes(Math.ceil(graceDeadline - elapsedMinutes));
+      } else {
+        // EXPIRED — grace period over, should have been reset
+        // checkAllGracePeriods handles the actual reset
+        setCountdownMode('grace');
+        setRemainingMinutes(0);
+      }
     };
 
     calculateRemaining();
 
-    // Update every 30 seconds for smooth countdown
-    const interval = setInterval(calculateRemaining, 30000);
+    // Update every 15 seconds for responsive countdown
+    const interval = setInterval(calculateRemaining, 15000);
     return () => clearInterval(interval);
   }, [category.last_completed_at, category.interval_minutes]);
 
@@ -170,7 +188,8 @@ export default function CategoryAccordion({
   const totalDuration = exercises.reduce((sum, e) => sum + e.duration_seconds, 0);
 
   // Determine countdown badge content
-  const isOverdue = remainingMinutes !== null && remainingMinutes <= 0;
+  const isGrace = countdownMode === 'grace';
+  const isOverdue = isGrace && remainingMinutes !== null && remainingMinutes <= 0;
   const showCountdown = remainingMinutes !== null;
 
   return (
@@ -228,13 +247,19 @@ export default function CategoryAccordion({
               <Text style={styles.categoryTitle} numberOfLines={1}>{category.title}</Text>
               {/* Countdown Badge */}
               {!editMode && showCountdown && (
-                <View style={[styles.countdownBadge, isOverdue && styles.countdownBadgeOverdue]}>
+                <View style={[
+                  styles.countdownBadge,
+                  isGrace && styles.countdownBadgeGrace,
+                ]}>
                   <Ionicons
-                    name={isOverdue ? 'notifications' : 'time-outline'}
+                    name={isOverdue ? 'alert-circle' : isGrace ? 'warning-outline' : 'time-outline'}
                     size={11}
-                    color={isOverdue ? Colors.secondary : Colors.accent}
+                    color={isGrace ? '#FF4757' : Colors.accent}
                   />
-                  <Text style={[styles.countdownText, isOverdue && styles.countdownTextOverdue]}>
+                  <Text style={[
+                    styles.countdownText,
+                    isGrace && styles.countdownTextGrace,
+                  ]}>
                     {isOverdue ? 'Now!' : formatRemainingTime(remainingMinutes!)}
                   </Text>
                 </View>
@@ -419,16 +444,16 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 8,
   },
-  countdownBadgeOverdue: {
-    backgroundColor: 'rgba(255, 179, 71, 0.15)',
+  countdownBadgeGrace: {
+    backgroundColor: 'rgba(255, 71, 87, 0.15)',
   },
   countdownText: {
     fontSize: 11,
     fontWeight: '700',
     color: Colors.accent,
   },
-  countdownTextOverdue: {
-    color: Colors.secondary,
+  countdownTextGrace: {
+    color: '#FF4757',
   },
   categoryMeta: {
     fontSize: 12,
