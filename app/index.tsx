@@ -18,7 +18,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/Colors';
 import { useApp } from '../contexts/AppContext';
-import { Category, deleteCategory, updateCategoryOrder, toggleCategoryActive } from '../db/queries';
+import { Category, deleteCategory, updateCategoryOrder, toggleCategoryActive, updateCategoryLastCompleted } from '../db/queries';
 import { checkAllGracePeriods, isDateStringToday } from '../services/streakService';
 import { scheduleAllNotifications } from '../services/notificationService';
 import StreakDisplay from '../components/StreakDisplay';
@@ -158,6 +158,12 @@ export default function Dashboard() {
           onPress: async () => {
             try {
               await toggleCategoryActive(categoryId, !isCurrentlyActive);
+              
+              // If activating the category, reset its timer so it starts from full interval
+              if (!isCurrentlyActive) {
+                await updateCategoryLastCompleted(categoryId, new Date().toISOString());
+              }
+
               await refreshData();
               await scheduleAllNotifications();
             } catch (error) {

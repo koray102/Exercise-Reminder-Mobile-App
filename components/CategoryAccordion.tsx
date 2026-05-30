@@ -59,6 +59,12 @@ export default function CategoryAccordion({
 
   // Calculate and update remaining minutes with 3-state logic
   useEffect(() => {
+    // Optimization: Do not run countdown calculations for Rest (inactive) categories
+    if (!category.is_active) {
+      setRemainingMinutes(null);
+      return;
+    }
+
     const calculateRemaining = () => {
       if (!category.last_completed_at) {
         setRemainingMinutes(null);
@@ -93,7 +99,7 @@ export default function CategoryAccordion({
     // Update every 15 seconds for responsive countdown
     const interval = setInterval(calculateRemaining, 15000);
     return () => clearInterval(interval);
-  }, [category.last_completed_at, category.interval_minutes]);
+  }, [category.last_completed_at, category.interval_minutes, category.is_active]);
 
   const toggleExpand = () => {
     if (editMode || isLongPressActivated.current) return;
