@@ -26,8 +26,8 @@ export default function StreakDisplay({ currentStreak, totalCount, isTodayComple
   const counterScale = useSharedValue(0);
 
   useEffect(() => {
-    scale.value = withSpring(1, { damping: 12, stiffness: 100 });
-    counterScale.value = withSpring(1, { damping: 10, stiffness: 80, mass: 0.8 });
+    scale.value = 1; // 500ms içinde düz şekilde büyür
+    counterScale.value = 1;
 
     if (!isTodayCompleted) {
       glow.value = withRepeat(

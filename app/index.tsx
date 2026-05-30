@@ -18,7 +18,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/Colors';
 import { useApp } from '../contexts/AppContext';
-import { Category, deleteCategory, updateCategoryOrder } from '../db/queries';
+import { Category, deleteCategory, updateCategoryOrder, toggleCategoryActive } from '../db/queries';
 import { checkAllGracePeriods, isDateStringToday } from '../services/streakService';
 import { scheduleAllNotifications } from '../services/notificationService';
 import StreakDisplay from '../components/StreakDisplay';
@@ -93,6 +93,8 @@ export default function Dashboard() {
     setPendingDeletions([]);
     setEditMode(false);
     await refreshData();
+    // Reschedule notifications to clear out any deleted categories
+    await scheduleAllNotifications();
   };
 
   const cancelEditMode = () => {
@@ -141,6 +143,32 @@ export default function Dashboard() {
     );
   };
 
+  const handleToggleActive = (categoryId: string, categoryTitle: string, currentStatus: number) => {
+    const isCurrentlyActive = currentStatus === 1;
+    const newStatusLabel = isCurrentlyActive ? 'Rest' : 'Active';
+    
+    Alert.alert(
+      `${newStatusLabel} Mode`,
+      `Are you sure you want to change "${categoryTitle}" to ${newStatusLabel} mode?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          style: 'default',
+          onPress: async () => {
+            try {
+              await toggleCategoryActive(categoryId, !isCurrentlyActive);
+              await refreshData();
+              await scheduleAllNotifications();
+            } catch (error) {
+              console.error('Failed to toggle category state:', error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const overlayStyle = useAnimatedStyle(() => ({
     opacity: overlayOpacity.value,
   }));
@@ -154,7 +182,12 @@ export default function Dashboard() {
     );
   }
 
-  const displayCategories = editMode ? orderedCategories : categories;
+  const displayCategories = editMode 
+    ? orderedCategories 
+    : [...categories].sort((a, b) => {
+        if (a.is_active === b.is_active) return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+        return a.is_active ? -1 : 1;
+      });
   const hasCategories = displayCategories.length > 0;
 
   // Calculate if daily streak condition is met (all active categories completed today)
@@ -175,6 +208,7 @@ export default function Dashboard() {
         onDrag={drag}
         isDragging={isActive}
         onDelete={() => handleDeleteCategory(item.id, item.title)}
+        onToggleActive={() => handleToggleActive(item.id, item.title, item.is_active)}
       />
     </ScaleDecorator>
   );

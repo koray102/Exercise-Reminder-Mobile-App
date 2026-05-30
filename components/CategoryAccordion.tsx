@@ -24,6 +24,7 @@ interface CategoryAccordionProps {
   onDrag?: () => void;
   isDragging?: boolean;
   onDelete?: () => void;
+  onToggleActive?: () => void;
 }
 
 export default function CategoryAccordion({
@@ -36,6 +37,7 @@ export default function CategoryAccordion({
   onDrag,
   isDragging = false,
   onDelete,
+  onToggleActive,
 }: CategoryAccordionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const rotation = useSharedValue(0);
@@ -163,6 +165,13 @@ export default function CategoryAccordion({
     };
   });
 
+  const containerAnimStyle = useAnimatedStyle(() => {
+    const targetOpacity = (!category.is_active && !editMode) ? 0.5 : 1;
+    return {
+      opacity: withTiming(targetOpacity, { duration: 300 }),
+    };
+  });
+
   const formatDuration = (seconds: number) => {
     if (seconds >= 60) {
       const min = Math.floor(seconds / 60);
@@ -198,6 +207,7 @@ export default function CategoryAccordion({
         styles.container,
         editMode && styles.containerEditMode,
         isDragging && styles.containerDragging,
+        containerAnimStyle,
       ]}
       onLayout={handleCardLayout}
     >
@@ -240,13 +250,21 @@ export default function CategoryAccordion({
 
         <View style={[styles.headerLeft, editMode && { marginLeft: 4 }]}>
           {!editMode && (
-            <View style={[styles.categoryDot, { backgroundColor: category.is_active ? Colors.accent : Colors.textMuted }]} />
+            <TouchableOpacity 
+              style={[styles.activeToggle, { backgroundColor: category.is_active ? Colors.accent : '#FF4757' }]} 
+              onPress={onToggleActive}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.activeToggleText}>
+                {category.is_active ? 'Active' : 'Rest'}
+              </Text>
+            </TouchableOpacity>
           )}
           <View style={{ flex: 1 }}>
             <View style={styles.titleRow}>
               <Text style={styles.categoryTitle} numberOfLines={1}>{category.title}</Text>
               {/* Countdown Badge */}
-              {!editMode && showCountdown && (
+              {!editMode && showCountdown && !!category.is_active && (
                 <View style={[
                   styles.countdownBadge,
                   isGrace && styles.countdownBadgeGrace,
@@ -418,10 +436,20 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 12,
   },
-  categoryDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+  activeToggle: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 50,
+  },
+  activeToggleText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   titleRow: {
     flexDirection: 'row',
