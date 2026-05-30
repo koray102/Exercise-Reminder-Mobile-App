@@ -21,6 +21,8 @@ export interface Exercise {
   duration_seconds: number;
   sort_order: number;
   is_two_sided: number;
+  type?: 'time' | 'reps';
+  reps?: number;
 }
 
 export interface Settings {
@@ -148,18 +150,20 @@ export function getExercisesByCategory(categoryId: string): Promise<Exercise[]> 
 
 export function addExercise(exercise: Exercise): Promise<void> {
   return withDbMutex(async () => {
-    console.log('[DB] addExercise:', exercise.id, exercise.name);
+    console.log('[DB] addExercise:', exercise.id);
     const db = await getDatabase();
     await db.runAsync(
-      'INSERT INTO exercises (id, category_id, name, description, youtube_link, duration_seconds, sort_order, is_two_sided) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO exercises (id, category_id, name, description, youtube_link, duration_seconds, sort_order, is_two_sided, type, reps) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       exercise.id,
       exercise.category_id,
       exercise.name,
-      exercise.description ?? '',
-      exercise.youtube_link ?? '',
+      exercise.description,
+      exercise.youtube_link,
       exercise.duration_seconds,
       exercise.sort_order,
-      exercise.is_two_sided ?? 0
+      exercise.is_two_sided,
+      exercise.type || 'time',
+      exercise.reps || 0
     );
     console.log('[DB] addExercise OK');
   });

@@ -328,8 +328,17 @@ export default function CategoryAccordion({
                 ) : null}
                 <View style={styles.exerciseFooter}>
                   <View style={styles.durationBadge}>
-                    <Ionicons name="time-outline" size={12} color={Colors.accent} />
-                    <Text style={styles.durationText}>{formatDuration(exercise.duration_seconds)}</Text>
+                    {exercise.type === 'reps' ? (
+                      <>
+                        <Ionicons name="repeat-outline" size={12} color={Colors.accent} />
+                        <Text style={styles.durationText}>{exercise.reps} Reps</Text>
+                      </>
+                    ) : (
+                      <>
+                        <Ionicons name="time-outline" size={12} color={Colors.accent} />
+                        <Text style={styles.durationText}>{formatDuration(exercise.duration_seconds)}</Text>
+                      </>
+                    )}
                   </View>
                   {exercise.youtube_link ? (
                     <TouchableOpacity

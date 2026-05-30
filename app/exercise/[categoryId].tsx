@@ -91,12 +91,19 @@ export default function ExerciseScreen() {
     setRemainingSeconds(Config.PREP_DURATION_SECONDS);
     startTimer(Config.PREP_DURATION_SECONDS, () => {
       // Use provided exercise list directly — no stale closure
-      const duration = exList[0]?.duration_seconds ?? 30;
+      const firstEx = exList[0];
       setPhase('active');
-      setRemainingSeconds(duration);
-      startTimer(duration, () => {
-        setPhase('finished');
-      });
+      
+      if (firstEx?.type === 'reps') {
+        // No timer for reps, wait for manual user action
+        if (timerRef.current) clearInterval(timerRef.current);
+      } else {
+        const duration = firstEx?.duration_seconds ?? 30;
+        setRemainingSeconds(duration);
+        startTimer(duration, () => {
+          setPhase('finished');
+        });
+      }
     });
   };
 
@@ -132,14 +139,19 @@ export default function ExerciseScreen() {
 
     setTimeout(() => {
       startTimer(Config.PREP_DURATION_SECONDS, () => {
-        const duration = ex.duration_seconds ?? 30;
         setPhase('active');
-        setRemainingSeconds(duration);
-        startTimer(duration, () => {
-          setPhase('finished');
-        });
+        if (ex.type === 'reps') {
+          // No timer for reps
+          if (timerRef.current) clearInterval(timerRef.current);
+        } else {
+          const duration = ex.duration_seconds ?? 30;
+          setRemainingSeconds(duration);
+          startTimer(duration, () => {
+            setPhase('finished');
+          });
+        }
       });
-    }, 300);
+    }, 100);
   };
 
   const handleFinish = async () => {
@@ -280,18 +292,26 @@ export default function ExerciseScreen() {
         </View>
       )}
 
-      {/* Timer */}
+      {/* Timer or Reps Display */}
       <View style={styles.timerContainer}>
-        <TimerCircle
-          totalSeconds={totalDuration}
-          remainingSeconds={remainingSeconds}
-          isPrep={phase === 'prep'}
-          label={
-            currentExercise?.is_two_sided
-              ? `${currentExercise?.name ?? ''} (${currentSide === 'left' ? 'Left' : 'Right'})`
-              : currentExercise?.name ?? ''
-          }
-        />
+        {phase === 'prep' || currentExercise?.type !== 'reps' ? (
+          <TimerCircle
+            totalSeconds={totalDuration}
+            remainingSeconds={remainingSeconds}
+            isPrep={phase === 'prep'}
+            label={
+              currentExercise?.is_two_sided
+                ? `${currentExercise?.name ?? ''} (${currentSide === 'left' ? 'Left' : 'Right'})`
+                : currentExercise?.name ?? ''
+            }
+          />
+        ) : (
+          <View style={styles.repsDisplay}>
+            <Text style={styles.repsCount}>{currentExercise.reps}</Text>
+            <Text style={styles.repsLabel}>Reps</Text>
+            <Text style={styles.repsSubLabel}>Complete at your own pace</Text>
+          </View>
+        )}
       </View>
 
       {/* Exercise Info */}
@@ -326,14 +346,26 @@ export default function ExerciseScreen() {
 
         {phase === 'active' && (
           <TouchableOpacity
-            style={styles.skipTimerButton}
+            style={currentExercise?.type === 'reps' ? styles.finishButton : styles.skipTimerButton}
             onPress={() => {
               if (timerRef.current) clearInterval(timerRef.current);
-              setPhase('finished');
+              if (currentExercise?.type === 'reps') {
+                handleFinish();
+              } else {
+                setPhase('finished');
+              }
             }}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
           >
-            <Text style={styles.skipTimerText}>Skip Timer</Text>
+            {currentExercise?.type === 'reps' ? (
+              <Text style={styles.finishButtonText}>
+                {currentExercise.is_two_sided && currentSide === 'left'
+                  ? 'Switch Side →'
+                  : currentIndex + 1 >= exercises.length ? 'Complete ✓' : 'Finish → Next'}
+              </Text>
+            ) : (
+              <Text style={styles.skipTimerText}>Skip Timer</Text>
+            )}
           </TouchableOpacity>
         )}
       </View>
@@ -425,6 +457,53 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  repsDisplay: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: Colors.surfaceBorder,
+    borderWidth: 4,
+    borderColor: Colors.accent,
+  },
+  repsCount: {
+    fontSize: 72,
+    fontWeight: '800',
+    color: Colors.accent,
+    marginBottom: -10,
+  },
+  repsLabel: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginBottom: 8,
+  },
+  repsSubLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.textMuted,
+  },
+  finishRepButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.accent,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 30,
+    gap: 8,
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  finishRepText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFF',
   },
   actionContainer: {
     alignItems: 'center',

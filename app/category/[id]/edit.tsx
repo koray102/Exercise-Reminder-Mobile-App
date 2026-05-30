@@ -34,6 +34,8 @@ interface ExerciseForm {
   duration_minutes: string;
   duration_seconds: string;
   is_two_sided: boolean;
+  type: 'time' | 'reps';
+  reps: string;
 }
 
 function generateId(): string {
@@ -86,6 +88,8 @@ export default function EditCategory() {
           duration_minutes: String(Math.floor(ex.duration_seconds / 60)),
           duration_seconds: String(ex.duration_seconds % 60),
           is_two_sided: !!ex.is_two_sided,
+          type: ex.type || 'time',
+          reps: String(ex.reps || 15),
         }))
       );
     } catch (error) {
@@ -98,7 +102,7 @@ export default function EditCategory() {
   const addExerciseForm = () => {
     setExercises([
       ...exercises,
-      { name: '', description: '', youtube_link: '', duration_minutes: '0', duration_seconds: '30', is_two_sided: false },
+      { name: '', description: '', youtube_link: '', duration_minutes: '0', duration_seconds: '30', is_two_sided: false, type: 'time', reps: '15' },
     ]);
   };
 
@@ -147,6 +151,8 @@ export default function EditCategory() {
           duration_seconds: durationSec > 0 ? durationSec : 30, // default 30s if nothing entered
           sort_order: i,
           is_two_sided: ex.is_two_sided ? 1 : 0,
+          type: ex.type || 'time',
+          reps: parseInt(ex.reps) || 0,
         });
       }
 
@@ -292,30 +298,61 @@ export default function EditCategory() {
                 keyboardType="url"
               />
 
-              <View style={styles.durationRow}>
-                <View style={styles.durationInput}>
-                  <Text style={styles.durationLabel}>Minutes</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={exercise.duration_minutes}
-                    onChangeText={v => updateExerciseForm(index, 'duration_minutes', v)}
-                    keyboardType="number-pad"
-                    placeholder="0"
-                    placeholderTextColor={Colors.textMuted}
-                  />
-                </View>
-                <View style={styles.durationInput}>
-                  <Text style={styles.durationLabel}>Seconds</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={exercise.duration_seconds}
-                    onChangeText={v => updateExerciseForm(index, 'duration_seconds', v)}
-                    keyboardType="number-pad"
-                    placeholder="30"
-                    placeholderTextColor={Colors.textMuted}
-                  />
-                </View>
+              <View style={styles.typeToggleContainer}>
+                <TouchableOpacity
+                  style={[styles.typeOption, exercise.type === 'time' && styles.typeOptionActive]}
+                  onPress={() => updateExerciseForm(index, 'type', 'time')}
+                >
+                  <Text style={[styles.typeOptionText, exercise.type === 'time' && styles.typeOptionTextActive]}>Time</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.typeOption, exercise.type === 'reps' && styles.typeOptionActive]}
+                  onPress={() => updateExerciseForm(index, 'type', 'reps')}
+                >
+                  <Text style={[styles.typeOptionText, exercise.type === 'reps' && styles.typeOptionTextActive]}>Reps</Text>
+                </TouchableOpacity>
               </View>
+
+              {exercise.type === 'time' ? (
+                <View style={styles.durationRow}>
+                  <View style={styles.durationInput}>
+                    <Text style={styles.durationLabel}>Minutes</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={exercise.duration_minutes}
+                      onChangeText={v => updateExerciseForm(index, 'duration_minutes', v)}
+                      keyboardType="number-pad"
+                      placeholder="0"
+                      placeholderTextColor={Colors.textMuted}
+                    />
+                  </View>
+                  <View style={styles.durationInput}>
+                    <Text style={styles.durationLabel}>Seconds</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={exercise.duration_seconds}
+                      onChangeText={v => updateExerciseForm(index, 'duration_seconds', v)}
+                      keyboardType="number-pad"
+                      placeholder="30"
+                      placeholderTextColor={Colors.textMuted}
+                    />
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.durationRow}>
+                  <View style={styles.durationInput}>
+                    <Text style={styles.durationLabel}>Rep Count</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={exercise.reps}
+                      onChangeText={v => updateExerciseForm(index, 'reps', v.replace(/[^0-9]/g, ''))}
+                      keyboardType="number-pad"
+                      placeholder="15"
+                      placeholderTextColor={Colors.textMuted}
+                    />
+                  </View>
+                </View>
+              )}
 
               {/* Two-Sided Toggle */}
               <View style={styles.twoSidedRow}>
@@ -539,5 +576,34 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textMuted,
     marginTop: 2,
+  },
+  typeToggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surfaceBorder,
+    borderRadius: 8,
+    padding: 4,
+    marginBottom: 16,
+  },
+  typeOption: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  typeOptionActive: {
+    backgroundColor: Colors.surface,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  typeOptionText: {
+    fontSize: 14,
+    color: Colors.textMuted,
+    fontWeight: '600',
+  },
+  typeOptionTextActive: {
+    color: Colors.textPrimary,
   },
 });

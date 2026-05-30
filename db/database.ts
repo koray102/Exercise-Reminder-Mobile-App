@@ -66,6 +66,8 @@ async function initDatabase(database: SQLite.SQLiteDatabase): Promise<void> {
       duration_seconds INTEGER NOT NULL DEFAULT 30,
       sort_order INTEGER NOT NULL DEFAULT 0,
       is_two_sided INTEGER NOT NULL DEFAULT 0,
+      type TEXT NOT NULL DEFAULT 'time',
+      reps INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
     );
 
@@ -94,10 +96,19 @@ async function initDatabase(database: SQLite.SQLiteDatabase): Promise<void> {
     await database.runAsync('ALTER TABLE categories ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0');
     console.log('[DB] Migration: added sort_order column to categories');
   } catch (e: any) {
-    // Column already exists — this is expected after first migration
     if (!e.message?.includes('duplicate column')) {
-      // Only log if it's NOT the expected "already exists" error
       console.log('[DB] sort_order column already exists');
+    }
+  }
+
+  // Migration: add type and reps columns to exercises
+  try {
+    await database.runAsync("ALTER TABLE exercises ADD COLUMN type TEXT NOT NULL DEFAULT 'time'");
+    await database.runAsync("ALTER TABLE exercises ADD COLUMN reps INTEGER NOT NULL DEFAULT 0");
+    console.log('[DB] Migration: added type and reps columns to exercises');
+  } catch (e: any) {
+    if (!e.message?.includes('duplicate column')) {
+      console.log('[DB] exercises columns already exist or error:', e.message);
     }
   }
 
