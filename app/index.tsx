@@ -18,7 +18,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/Colors';
 import { useApp } from '../contexts/AppContext';
-import { Category, deleteCategory, updateCategoryOrder, toggleCategoryActive, updateCategoryLastCompleted } from '../db/queries';
+import { Category, Exercise, deleteCategory, updateCategoryOrder, toggleCategoryActive, updateCategoryLastCompleted } from '../db/queries';
 import { checkAllGracePeriods, isDateStringToday } from '../services/streakService';
 import { scheduleAllNotifications } from '../services/notificationService';
 import StreakDisplay from '../components/StreakDisplay';
@@ -76,11 +76,11 @@ export default function Dashboard() {
     setRefreshing(false);
   };
 
-  const enterEditMode = () => {
+  const enterEditMode = useCallback(() => {
     setOrderedCategories([...categories]);
     setPendingDeletions([]);
     setEditMode(true);
-  };
+  }, [categories]);
 
   const saveEditMode = async () => {
     // Perform pending deletions
@@ -124,7 +124,7 @@ export default function Dashboard() {
     }
   };
 
-  const handleDeleteCategory = (categoryId: string, categoryTitle: string) => {
+  const handleDeleteCategory = useCallback((categoryId: string, categoryTitle: string) => {
     Alert.alert(
       'Delete Category',
       `Are you sure you want to delete "${categoryTitle}" and all its exercises?`,
@@ -141,9 +141,9 @@ export default function Dashboard() {
         },
       ]
     );
-  };
+  }, []);
 
-  const handleToggleActive = (categoryId: string, categoryTitle: string, currentStatus: number) => {
+  const handleToggleActive = useCallback((categoryId: string, categoryTitle: string, currentStatus: number) => {
     const isCurrentlyActive = currentStatus === 1;
     const newStatusLabel = isCurrentlyActive ? 'Rest' : 'Active';
     
@@ -173,11 +173,46 @@ export default function Dashboard() {
         },
       ]
     );
-  };
+  }, [refreshData]);
 
   const overlayStyle = useAnimatedStyle(() => ({
     opacity: overlayOpacity.value,
   }));
+
+  const EMPTY_EXERCISES: Exercise[] = [];
+
+  const handleStartExercise = useCallback((categoryId: string) => {
+    router.push(`/exercise/${categoryId}`);
+  }, [router]);
+
+  const handleEditCategory = useCallback((categoryId: string) => {
+    router.push(`/category/${categoryId}/edit`);
+  }, [router]);
+
+  const renderItem = useCallback(({ item, drag, isActive }: RenderItemParams<Category>) => (
+    <ScaleDecorator>
+      <CategoryAccordion
+        category={item}
+        exercises={exercisesByCategory[item.id] || EMPTY_EXERCISES}
+        onStartExercise={handleStartExercise}
+        onEditCategory={handleEditCategory}
+        editMode={editMode}
+        onLongPressActivate={enterEditMode}
+        onDrag={drag}
+        isDragging={isActive}
+        onDelete={handleDeleteCategory}
+        onToggleActive={handleToggleActive}
+      />
+    </ScaleDecorator>
+  ), [
+    editMode, 
+    exercisesByCategory, 
+    handleStartExercise, 
+    handleEditCategory, 
+    enterEditMode, 
+    handleDeleteCategory, 
+    handleToggleActive
+  ]);
 
   if (isLoading && !streaks) {
     return (
@@ -201,23 +236,6 @@ export default function Dashboard() {
   const isTodayCompleted = activeCategories.length > 0 && activeCategories.every(c => {
     return isDateStringToday(c.last_completed_at);
   });
-
-  const renderItem = ({ item, drag, isActive }: RenderItemParams<Category>) => (
-    <ScaleDecorator>
-      <CategoryAccordion
-        category={item}
-        exercises={exercisesByCategory[item.id] || []}
-        onStartExercise={(categoryId) => router.push(`/exercise/${categoryId}`)}
-        onEditCategory={(categoryId) => router.push(`/category/${categoryId}/edit`)}
-        editMode={editMode}
-        onLongPressActivate={enterEditMode}
-        onDrag={drag}
-        isDragging={isActive}
-        onDelete={() => handleDeleteCategory(item.id, item.title)}
-        onToggleActive={() => handleToggleActive(item.id, item.title, item.is_active)}
-      />
-    </ScaleDecorator>
-  );
 
   const ListHeader = () => (
     <>

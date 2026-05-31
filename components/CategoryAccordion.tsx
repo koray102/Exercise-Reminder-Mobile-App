@@ -23,11 +23,11 @@ interface CategoryAccordionProps {
   onLongPressActivate?: () => void;
   onDrag?: () => void;
   isDragging?: boolean;
-  onDelete?: () => void;
-  onToggleActive?: () => void;
+  onDelete?: (id: string, title: string) => void;
+  onToggleActive?: (id: string, title: string, status: number) => void;
 }
 
-export default function CategoryAccordion({
+const CategoryAccordion = React.memo(({
   category,
   exercises,
   onStartExercise,
@@ -38,7 +38,7 @@ export default function CategoryAccordion({
   isDragging = false,
   onDelete,
   onToggleActive,
-}: CategoryAccordionProps) {
+}: CategoryAccordionProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const rotation = useSharedValue(0);
   const height = useSharedValue(0);
@@ -125,7 +125,7 @@ export default function CategoryAccordion({
     rippleX.value = locationX;
     rippleY.value = locationY;
     rippleOpacity.value = withTiming(1, { duration: 200 });
-    rippleScale.value = withTiming(1, { duration: 1300, easing: Easing.out(Easing.quad) }, (finished) => {
+    rippleScale.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.quad) }, (finished) => {
       if (finished) {
         runOnJS(activateEditMode)();
       }
@@ -228,7 +228,7 @@ export default function CategoryAccordion({
       {editMode && (
         <TouchableOpacity
           style={styles.deleteButton}
-          onPress={onDelete}
+          onPress={() => onDelete?.(category.id, category.title)}
           activeOpacity={0.7}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
@@ -242,10 +242,8 @@ export default function CategoryAccordion({
       <Pressable
         style={styles.header}
         onPress={editMode ? undefined : toggleExpand}
-        onPressIn={editMode ? undefined : handlePressIn}
+        onPressIn={editMode ? onDrag : handlePressIn}
         onPressOut={editMode ? undefined : handlePressOut}
-        onLongPress={editMode ? onDrag : undefined}
-        delayLongPress={editMode ? 150 : undefined}
       >
         {/* Drag handle icon — left side in edit mode */}
         {editMode && (
@@ -258,7 +256,7 @@ export default function CategoryAccordion({
           {!editMode && (
             <TouchableOpacity 
               style={[styles.activeToggle, { backgroundColor: category.is_active ? Colors.accent : '#FF4757' }]} 
-              onPress={onToggleActive}
+              onPress={() => onToggleActive?.(category.id, category.title, category.is_active)}
               activeOpacity={0.8}
             >
               <Text style={styles.activeToggleText}>
@@ -375,7 +373,9 @@ export default function CategoryAccordion({
       )}
     </Animated.View>
   );
-}
+});
+
+export default CategoryAccordion;
 
 const styles = StyleSheet.create({
   container: {
@@ -405,7 +405,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 16,
     elevation: 12,
-    transform: [{ scale: 1.03 }],
   },
   rippleContainer: {
     ...StyleSheet.absoluteFillObject,
