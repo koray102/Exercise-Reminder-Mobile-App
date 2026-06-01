@@ -62,30 +62,45 @@ export function isWithinActiveWindow(startStr: string, endStr: string): boolean 
     return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
   }
 }
+let isScheduling = false;
+let pendingSchedule = false;
 
 /**
  * Schedule notifications for all active categories.
- * For each category, schedules:
- *   1. Reminder at interval time: "15 minutes to start!"
- *   2. Warning at interval + 10 min: "5 minutes remaining!"
- *   3. Expiry at interval + 15 min: "Time's up! Streak reset."
+ * Uses a mutex to prevent duplicate notifications if called concurrently.
  */
 export async function scheduleAllNotifications(): Promise<void> {
-  await Notifications.cancelAllScheduledNotificationsAsync();
-
-  const settings = await getSettings();
-  if (!settings.manual_toggle_state) return;
-
-  if (!isWithinActiveWindow(settings.active_window_start, settings.active_window_end)) {
-    await scheduleWindowStartNotification(settings.active_window_start);
+  if (isScheduling) {
+    pendingSchedule = true;
     return;
   }
 
-  const categories = await getAllCategories();
-  const activeCategories = categories.filter(c => c.is_active);
+  isScheduling = true;
 
-  for (const category of activeCategories) {
-    await scheduleCategoryNotifications(category);
+  try {
+    do {
+      pendingSchedule = false;
+      await Notifications.cancelAllScheduledNotificationsAsync();
+
+      const settings = await getSettings();
+      if (!settings.manual_toggle_state) continue;
+
+      if (!isWithinActiveWindow(settings.active_window_start, settings.active_window_end)) {
+        await scheduleWindowStartNotification(settings.active_window_start);
+        continue;
+      }
+
+      const categories = await getAllCategories();
+      const activeCategories = categories.filter(c => c.is_active);
+
+      for (const category of activeCategories) {
+        await scheduleCategoryNotifications(category);
+      }
+    } while (pendingSchedule);
+  } catch (error) {
+    console.error('[Notifications] Failed to schedule:', error);
+  } finally {
+    isScheduling = false;
   }
 }
 
