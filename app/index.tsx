@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/Colors';
 import { useApp } from '../contexts/AppContext';
 import { Category, Exercise, deleteCategory, updateCategoryOrder, toggleCategoryActive, updateCategoryLastCompleted } from '../db/queries';
-import { checkAllGracePeriods, isDateStringToday } from '../services/streakService';
+import { checkAllGracePeriods, evaluateDailyStreak, isDateStringToday } from '../services/streakService';
 import { scheduleAllNotifications } from '../services/notificationService';
 import StreakDisplay from '../components/StreakDisplay';
 import CategoryAccordion from '../components/CategoryAccordion';
@@ -106,6 +106,12 @@ export default function Dashboard() {
     await updateCategoryOrder(orderedIds);
     setPendingDeletions([]);
     setEditMode(false);
+    
+    // Evaluate streak in case the deleted categories were holding back the daily streak
+    if (pendingDeletions.length > 0) {
+      await evaluateDailyStreak();
+    }
+    
     await refreshData();
     // Reschedule notifications to clear out any deleted categories
     await scheduleAllNotifications();
@@ -176,6 +182,9 @@ export default function Dashboard() {
               // If activating the category, reset its timer so it starts from full interval
               if (!isCurrentlyActive) {
                 await updateCategoryLastCompleted(categoryId, new Date().toISOString());
+              } else {
+                // If deactivating, it might mean the remaining active categories are already completed
+                await evaluateDailyStreak();
               }
 
               await refreshData();
@@ -248,7 +257,7 @@ export default function Dashboard() {
   // Calculate if daily streak condition is met (all active categories completed today)
   const activeCategories = categories.filter(c => c.is_active);
   const isTodayCompleted = activeCategories.length > 0 && activeCategories.every(c => {
-    return isDateStringToday(c.last_completed_at);
+    return isDateStringToday(c.last_routine_completed_at);
   });
 
   const ListHeader = () => (

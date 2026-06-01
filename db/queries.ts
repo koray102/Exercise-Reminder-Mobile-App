@@ -10,6 +10,7 @@ export interface Category {
   sort_order: number;
   created_at: string;
   last_completed_at: string | null;
+  last_routine_completed_at: string | null;
 }
 
 export interface Exercise {
@@ -131,6 +132,18 @@ export function updateCategoryLastCompleted(categoryId: string, timestamp: strin
     const db = await getDatabase();
     await db.runAsync('UPDATE categories SET last_completed_at = ? WHERE id = ?', timestamp, categoryId);
     console.log('[DB] updateCategoryLastCompleted OK');
+  });
+}
+
+export function updateCategoryRoutineCompleted(categoryId: string, timestamp: string): Promise<void> {
+  return withDbMutex(async () => {
+    console.log('[DB] updateCategoryRoutineCompleted:', categoryId);
+    const db = await getDatabase();
+    await db.runAsync(
+      'UPDATE categories SET last_completed_at = ?, last_routine_completed_at = ? WHERE id = ?', 
+      timestamp, timestamp, categoryId
+    );
+    console.log('[DB] updateCategoryRoutineCompleted OK');
   });
 }
 

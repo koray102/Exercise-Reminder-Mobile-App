@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/Colors';
 import { Config } from '../constants/config';
 import { Category, Exercise } from '../db/queries';
+import { isDateStringToday } from '../services/streakService';
 
 interface CategoryAccordionProps {
   category: Category;
@@ -207,6 +208,8 @@ const CategoryAccordion = React.memo(({
   const isOverdue = isGrace && remainingMinutes !== null && remainingMinutes <= 0;
   const showCountdown = remainingMinutes !== null;
 
+  const isCompletedToday = isDateStringToday(category.last_routine_completed_at);
+
   return (
     <Animated.View
       style={[
@@ -266,7 +269,15 @@ const CategoryAccordion = React.memo(({
           )}
           <View style={{ flex: 1 }}>
             <View style={styles.titleRow}>
-              <Text style={styles.categoryTitle} numberOfLines={1}>{category.title}</Text>
+              <Text 
+                style={[
+                  styles.categoryTitle, 
+                  { color: isCompletedToday ? Colors.success : Colors.textPrimary }
+                ]} 
+                numberOfLines={1}
+              >
+                {category.title}
+              </Text>
               {/* Countdown Badge */}
               {!editMode && showCountdown && !!category.is_active && (
                 <View style={[

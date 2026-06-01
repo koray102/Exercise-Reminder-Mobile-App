@@ -101,6 +101,7 @@ export default function AddCategory() {
         is_active: 1,
         sort_order: 0,
         last_completed_at: null,
+        last_routine_completed_at: null,
       });
 
       for (let i = 0; i < validExercises.length; i++) {
