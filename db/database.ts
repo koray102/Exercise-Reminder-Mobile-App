@@ -76,7 +76,8 @@ async function initDatabase(database: SQLite.SQLiteDatabase): Promise<void> {
       active_window_start TEXT NOT NULL DEFAULT '13:00',
       active_window_end TEXT NOT NULL DEFAULT '02:00',
       manual_toggle_state INTEGER NOT NULL DEFAULT 1,
-      manual_toggle_timestamp TEXT
+      manual_toggle_timestamp TEXT,
+      haptics_enabled INTEGER NOT NULL DEFAULT 1
     );
 
     CREATE TABLE IF NOT EXISTS streaks (
@@ -129,6 +130,16 @@ async function initDatabase(database: SQLite.SQLiteDatabase): Promise<void> {
   } catch (e: any) {
     if (!e.message?.includes('duplicate column')) {
       console.log('[DB] last_completed_at column already exists');
+    }
+  }
+
+  // Migration: add haptics_enabled column to settings
+  try {
+    await database.runAsync('ALTER TABLE settings ADD COLUMN haptics_enabled INTEGER NOT NULL DEFAULT 1');
+    console.log('[DB] Migration: added haptics_enabled column to settings');
+  } catch (e: any) {
+    if (!e.message?.includes('duplicate column')) {
+      console.log('[DB] haptics_enabled column already exists');
     }
   }
 }

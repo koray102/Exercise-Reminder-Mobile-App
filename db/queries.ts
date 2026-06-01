@@ -31,6 +31,7 @@ export interface Settings {
   active_window_end: string;
   manual_toggle_state: number;
   manual_toggle_timestamp: string | null;
+  haptics_enabled: number;
 }
 
 export interface Streaks {
@@ -239,6 +240,10 @@ export function updateSettings(settings: Partial<Omit<Settings, 'id'>>): Promise
     if (settings.manual_toggle_timestamp !== undefined) {
       fields.push('manual_toggle_timestamp = ?');
       args.push(settings.manual_toggle_timestamp);
+    }
+    if (settings.haptics_enabled !== undefined) {
+      fields.push('haptics_enabled = ?');
+      args.push(settings.haptics_enabled);
     }
 
     if (fields.length > 0) {

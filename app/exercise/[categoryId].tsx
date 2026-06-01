@@ -23,6 +23,7 @@ import { scheduleAllNotifications } from '../../services/notificationService';
 import { useApp } from '../../contexts/AppContext';
 import { Config } from '../../constants/config';
 import TimerCircle from '../../components/TimerCircle';
+import * as Haptics from 'expo-haptics';
 
 type Phase = 'prep' | 'active' | 'finished' | 'completed';
 
@@ -38,6 +39,7 @@ export default function ExerciseScreen() {
   const [remainingSeconds, setRemainingSeconds] = useState(Config.PREP_DURATION_SECONDS);
   const [isLoading, setIsLoading] = useState(true);
   const [currentSide, setCurrentSide] = useState<'left' | 'right'>('left');
+  const [hapticsEnabled, setHapticsEnabled] = useState(true);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Ref to avoid stale closure — always has the latest exercises
@@ -59,6 +61,10 @@ export default function ExerciseScreen() {
   const loadExercises = async () => {
     if (!categoryId) return;
     try {
+      const { getSettings } = require('../../db/queries');
+      const settings = await getSettings();
+      setHapticsEnabled(!!settings.haptics_enabled);
+
       const cat = await getCategoryById(categoryId);
       if (cat) setCategoryTitle(cat.title);
 
@@ -93,7 +99,7 @@ export default function ExerciseScreen() {
       // Use provided exercise list directly — no stale closure
       const firstEx = exList[0];
       setPhase('active');
-      
+
       if (firstEx?.type === 'reps') {
         // No timer for reps, wait for manual user action
         if (timerRef.current) clearInterval(timerRef.current);
@@ -116,6 +122,16 @@ export default function ExerciseScreen() {
     timerRef.current = setInterval(() => {
       remaining -= 1;
       setRemainingSeconds(remaining);
+
+      // --- HAPTICS LOGIC ---
+      if (hapticsEnabled) {
+        if (remaining === 3 || remaining === 2 || remaining === 1) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        } else if (remaining === 0) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+      }
+      // ---------------------
 
       if (remaining <= 0) {
         if (timerRef.current) clearInterval(timerRef.current);

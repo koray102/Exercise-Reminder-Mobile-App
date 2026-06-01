@@ -22,6 +22,7 @@ export default function SettingsScreen() {
   const [windowStart, setWindowStart] = useState(Config.DEFAULT_ACTIVE_WINDOW_START);
   const [windowEnd, setWindowEnd] = useState(Config.DEFAULT_ACTIVE_WINDOW_END);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [hapticsEnabled, setHapticsEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -34,6 +35,7 @@ export default function SettingsScreen() {
       setWindowStart(settings.active_window_start);
       setWindowEnd(settings.active_window_end);
       setNotificationsEnabled(!!settings.manual_toggle_state);
+      setHapticsEnabled(!!settings.haptics_enabled);
     } catch (error) {
       console.error('Load settings error:', error);
     } finally {
@@ -51,6 +53,18 @@ export default function SettingsScreen() {
       await scheduleAllNotifications();
     } catch (error) {
       console.error('Toggle error:', error);
+    }
+  };
+
+  const handleToggleHaptics = async (value: boolean) => {
+    setHapticsEnabled(value);
+    try {
+      await updateSettings({
+        haptics_enabled: value ? 1 : 0,
+      });
+      await refreshData();
+    } catch (error) {
+      console.error('Haptics toggle error:', error);
     }
   };
 
@@ -100,6 +114,21 @@ export default function SettingsScreen() {
             onValueChange={handleToggleNotifications}
             trackColor={{ false: Colors.surfaceBorder, true: Colors.accentMuted }}
             thumbColor={notificationsEnabled ? Colors.accent : Colors.textMuted}
+          />
+        </View>
+
+        <View style={styles.settingRow}>
+          <View style={styles.settingInfo}>
+            <Text style={styles.settingLabel}>Vibration (Haptics)</Text>
+            <Text style={styles.settingDesc}>
+              Vibrate during the last 3 seconds and when the exercise is finished.
+            </Text>
+          </View>
+          <Switch
+            value={hapticsEnabled}
+            onValueChange={handleToggleHaptics}
+            trackColor={{ false: Colors.surfaceBorder, true: Colors.accentMuted }}
+            thumbColor={hapticsEnabled ? Colors.accent : Colors.textMuted}
           />
         </View>
 

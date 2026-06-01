@@ -70,6 +70,20 @@ export default function Dashboard() {
     }, [])
   );
 
+  // Periodically check for grace period expirations while the app is actively open
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const anyExpired = await checkAllGracePeriods();
+      if (anyExpired) {
+        await refreshStreaks();
+        await scheduleAllNotifications();
+        await refreshData();
+      }
+    }, 15000); // Check every 15 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
   const onRefresh = async () => {
     setRefreshing(true);
     await refreshData();

@@ -121,6 +121,8 @@ async function scheduleCategoryNotifications(category: Category): Promise<void> 
   const intervalSeconds = category.interval_minutes * 60;
   const graceSeconds = Config.GRACE_PERIOD_MINUTES * 60;
 
+  const cycleLength = intervalSeconds + graceSeconds;
+
   // Calculate how far into the cycle we are
   let elapsedSeconds = 0;
   if (category.last_completed_at) {
@@ -128,48 +130,49 @@ async function scheduleCategoryNotifications(category: Category): Promise<void> 
     elapsedSeconds = Math.floor((Date.now() - lastCompleted) / 1000);
   }
 
-  // If already past grace expiry, the check on app focus will handle reset.
-  // Schedule fresh notifications for the next cycle.
-  if (elapsedSeconds >= intervalSeconds + graceSeconds) {
-    // Past grace — schedule for the full interval from now
-    await scheduleGraceNotifications(category, intervalSeconds, graceSeconds);
-    return;
-  }
+  const currentElapsed = elapsedSeconds % cycleLength;
+  const remainingInCurrentCycle = cycleLength - currentElapsed;
 
-  // If still in idle phase (interval hasn't expired yet)
-  if (elapsedSeconds < intervalSeconds) {
-    const remainingToInterval = intervalSeconds - elapsedSeconds;
+  // 1. Schedule remainder of CURRENT cycle
+  if (currentElapsed < intervalSeconds) {
+    const remainingToInterval = intervalSeconds - currentElapsed;
     await scheduleGraceNotifications(category, remainingToInterval, graceSeconds);
-    return;
+  } else {
+    // If currently in grace period (interval expired, grace not yet expired)
+    const elapsedGrace = currentElapsed - intervalSeconds;
+    const remainingGrace = graceSeconds - elapsedGrace;
+
+    if (remainingGrace > 0) {
+      const fiveMinMark = graceSeconds - 5 * 60; // seconds into grace when 5 min remain
+      const warningDelay = fiveMinMark - elapsedGrace;
+      if (warningDelay > 1) {
+        await scheduleNotification(
+          category,
+          `⚠️ ${category.title} — 5 minutes remaining!`,
+          'grace_warning',
+          warningDelay
+        );
+      }
+
+      if (remainingGrace > 1) {
+        await scheduleNotification(
+          category,
+          `❌ ${category.title} — Time's up! Streak reset.`,
+          'grace_expired',
+          remainingGrace
+        );
+      }
+    }
   }
 
-  // If currently in grace period (interval expired, grace not yet expired)
-  const elapsedGrace = elapsedSeconds - intervalSeconds;
-  const remainingGrace = graceSeconds - elapsedGrace;
-
-  // Schedule only the remaining grace notifications
-  if (remainingGrace > 0) {
-    // Warning at 5 min remaining (if not already past)
-    const fiveMinMark = graceSeconds - 5 * 60; // seconds into grace when 5 min remain
-    const warningDelay = (fiveMinMark - elapsedGrace);
-    if (warningDelay > 1) {
-      await scheduleNotification(
-        category,
-        `⚠️ ${category.title} — 5 minutes remaining!`,
-        'grace_warning',
-        warningDelay
-      );
-    }
-
-    // Expiry notification
-    if (remainingGrace > 1) {
-      await scheduleNotification(
-        category,
-        `❌ ${category.title} — Time's up! Streak reset.`,
-        'grace_expired',
-        remainingGrace
-      );
-    }
+  // 2. Schedule FUTURE cycles (up to 10 cycles ahead to ensure continuous loop)
+  const MAX_CYCLES = 10;
+  let baseDelay = remainingInCurrentCycle;
+  for (let i = 0; i < MAX_CYCLES; i++) {
+    // The next cycle starts at `baseDelay`. 
+    // Its interval finishes `intervalSeconds` after the cycle starts.
+    await scheduleGraceNotifications(category, baseDelay + intervalSeconds, graceSeconds);
+    baseDelay += cycleLength;
   }
 }
 
