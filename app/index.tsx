@@ -1,11 +1,10 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import DraggableFlatList, { ScaleDecorator, RenderItemParams } from 'react-native-draggable-flatlist';
 import Animated, {
@@ -14,37 +13,36 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/Colors';
 import { useApp } from '../contexts/AppContext';
-import { Category, Exercise, deleteCategory, updateCategoryOrder, toggleCategoryActive, updateCategoryLastCompleted } from '../db/queries';
-import { checkAllGracePeriods, evaluateDailyStreak, isDateStringToday } from '../services/streakService';
-import { scheduleAllNotifications } from '../services/notificationService';
+import { Category, Exercise } from '../types';
 import StreakDisplay from '../components/StreakDisplay';
 import CategoryAccordion from '../components/CategoryAccordion';
 import FAB from '../components/FAB';
-
+import { useDashboard } from '../hooks/useDashboard';
 
 export default function Dashboard() {
   const router = useRouter();
-  const { state, refreshData, refreshStreaks } = useApp();
-  const { categories, exercisesByCategory, streaks, isLoading } = state;
-
-  const [editMode, setEditMode] = useState(false);
-  const [orderedCategories, setOrderedCategories] = useState<Category[]>(categories);
-  const [refreshing, setRefreshing] = useState(false);
-  const [pendingDeletions, setPendingDeletions] = useState<string[]>([]);
+  const { state: { streaks, isLoading, exercisesByCategory } } = useApp();
+  
+  const {
+    editMode,
+    orderedCategories,
+    setOrderedCategories,
+    enterEditMode,
+    saveEditMode,
+    cancelEditMode,
+    handleDeleteCategory,
+    handleToggleActive,
+    displayCategories,
+    hasCategories,
+    isTodayCompleted
+  } = useDashboard();
 
   // Overlay animation
   const overlayOpacity = useSharedValue(0);
-
-  // Sync ordered categories when not in edit mode
-  useEffect(() => {
-    if (!editMode) {
-      setOrderedCategories(categories);
-    }
-  }, [categories, editMode]);
 
   // Animate overlay when edit mode changes
   useEffect(() => {
@@ -52,151 +50,7 @@ export default function Dashboard() {
       duration: 300,
       easing: Easing.bezier(0.4, 0, 0.2, 1),
     });
-  }, [editMode]);
-
-  // Refresh data and check grace periods when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      const checkGrace = async () => {
-        const anyExpired = await checkAllGracePeriods();
-        if (anyExpired) {
-          await refreshStreaks();
-          await scheduleAllNotifications();
-        }
-        await refreshData();
-      };
-      checkGrace();
-      setEditMode(false);
-    }, [])
-  );
-
-  // Periodically check for grace period expirations while the app is actively open
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      const anyExpired = await checkAllGracePeriods();
-      if (anyExpired) {
-        await refreshStreaks();
-        await scheduleAllNotifications();
-        await refreshData();
-      }
-    }, 15000); // Check every 15 seconds
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await refreshData();
-    setRefreshing(false);
-  };
-
-  const enterEditMode = useCallback(() => {
-    setOrderedCategories([...categories]);
-    setPendingDeletions([]);
-    setEditMode(true);
-  }, [categories]);
-
-  const saveEditMode = async () => {
-    // Perform pending deletions
-    for (const id of pendingDeletions) {
-      await deleteCategory(id);
-    }
-    // Save the new order
-    const orderedIds = orderedCategories.map(c => c.id);
-    await updateCategoryOrder(orderedIds);
-    setPendingDeletions([]);
-    setEditMode(false);
-    
-    // Evaluate streak in case the deleted categories were holding back the daily streak
-    if (pendingDeletions.length > 0) {
-      await evaluateDailyStreak();
-    }
-    
-    await refreshData();
-    // Reschedule notifications to clear out any deleted categories
-    await scheduleAllNotifications();
-  };
-
-  const cancelEditMode = () => {
-    const orderChanged = orderedCategories.length !== categories.length ||
-      orderedCategories.some((c, i) => c.id !== categories[i]?.id);
-    const hasChanges = pendingDeletions.length > 0 || orderChanged;
-
-    if (hasChanges) {
-      Alert.alert(
-        'Discard Changes',
-        'Are you sure you want to discard your changes?',
-        [
-          { text: 'No', style: 'cancel' },
-          {
-            text: 'Yes',
-            style: 'destructive',
-            onPress: () => {
-              setOrderedCategories([...categories]);
-              setPendingDeletions([]);
-              setEditMode(false);
-            },
-          },
-        ]
-      );
-    } else {
-      setEditMode(false);
-    }
-  };
-
-  const handleDeleteCategory = useCallback((categoryId: string, categoryTitle: string) => {
-    Alert.alert(
-      'Delete Category',
-      `Are you sure you want to delete "${categoryTitle}" and all its exercises?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            // Defer deletion — only remove from local state
-            setOrderedCategories(prev => prev.filter(c => c.id !== categoryId));
-            setPendingDeletions(prev => [...prev, categoryId]);
-          },
-        },
-      ]
-    );
-  }, []);
-
-  const handleToggleActive = useCallback((categoryId: string, categoryTitle: string, currentStatus: number) => {
-    const isCurrentlyActive = currentStatus === 1;
-    const newStatusLabel = isCurrentlyActive ? 'Rest' : 'Active';
-    
-    Alert.alert(
-      `${newStatusLabel} Mode`,
-      `Are you sure you want to change "${categoryTitle}" to ${newStatusLabel} mode?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm',
-          style: 'default',
-          onPress: async () => {
-            try {
-              await toggleCategoryActive(categoryId, !isCurrentlyActive);
-              
-              // If activating the category, reset its timer so it starts from full interval
-              if (!isCurrentlyActive) {
-                await updateCategoryLastCompleted(categoryId, new Date().toISOString());
-              } else {
-                // If deactivating, it might mean the remaining active categories are already completed
-                await evaluateDailyStreak();
-              }
-
-              await refreshData();
-              await scheduleAllNotifications();
-            } catch (error) {
-              console.error('Failed to toggle category state:', error);
-            }
-          },
-        },
-      ]
-    );
-  }, [refreshData]);
+  }, [editMode, overlayOpacity]);
 
   const overlayStyle = useAnimatedStyle(() => ({
     opacity: overlayOpacity.value,
@@ -245,20 +99,6 @@ export default function Dashboard() {
       </View>
     );
   }
-
-  const displayCategories = editMode 
-    ? orderedCategories 
-    : [...categories].sort((a, b) => {
-        if (a.is_active === b.is_active) return (a.sort_order ?? 0) - (b.sort_order ?? 0);
-        return a.is_active ? -1 : 1;
-      });
-  const hasCategories = displayCategories.length > 0;
-
-  // Calculate if daily streak condition is met (all active categories completed today)
-  const activeCategories = categories.filter(c => c.is_active);
-  const isTodayCompleted = activeCategories.length > 0 && activeCategories.every(c => {
-    return isDateStringToday(c.last_routine_completed_at);
-  });
 
   const ListHeader = () => (
     <>

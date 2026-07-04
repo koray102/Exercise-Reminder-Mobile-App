@@ -13,8 +13,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, MilestoneColors } from '../constants/Colors';
 import { Config } from '../constants/config';
 import { useApp } from '../contexts/AppContext';
-import { getSettings, updateSettings } from '../db/queries';
-import { scheduleAllNotifications, isWithinActiveWindow } from '../services/notificationService';
+import { getSettings, updateSettings } from '../repositories/SettingsRepository';
+import { scheduleAllNotifications } from '../services/notificationService';
+import { isWithinActiveWindow } from '../utils/time';
 
 export default function SettingsScreen() {
   const { refreshData } = useApp();
@@ -90,7 +91,7 @@ export default function SettingsScreen() {
     }
   };
 
-  const inWindow = isWithinActiveWindow(windowStart, windowEnd);
+  const inWindow = isWithinActiveWindow(new Date(), windowStart, windowEnd);
 
   return (
     <ScrollView

@@ -1,229 +1,38 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
   FadeIn,
-  FadeOut,
   SlideInRight,
 } from 'react-native-reanimated';
 import { Colors } from '../../constants/Colors';
-import { getExercisesByCategory, getCategoryById, Exercise, updateCategoryLastCompleted } from '../../db/queries';
-import { onRoutineCompleted } from '../../services/streakService';
-import { scheduleAllNotifications } from '../../services/notificationService';
-import { useApp } from '../../contexts/AppContext';
-import { Config } from '../../constants/config';
 import TimerCircle from '../../components/TimerCircle';
-import * as Haptics from 'expo-haptics';
-
-type Phase = 'prep' | 'active' | 'finished' | 'completed';
+import { useExerciseSession } from '../../hooks/useExerciseSession';
 
 export default function ExerciseScreen() {
   const { categoryId } = useLocalSearchParams<{ categoryId: string }>();
-  const router = useRouter();
-  const { refreshStreaks, refreshData } = useApp();
-
-  const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [categoryTitle, setCategoryTitle] = useState('');
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [phase, setPhase] = useState<Phase>('prep');
-  const [remainingSeconds, setRemainingSeconds] = useState(Config.PREP_DURATION_SECONDS);
-  const [isLoading, setIsLoading] = useState(true);
-  const [currentSide, setCurrentSide] = useState<'left' | 'right'>('left');
-  const [hapticsEnabled, setHapticsEnabled] = useState(true);
-
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Ref to avoid stale closure — always has the latest exercises
-  const exercisesRef = useRef<Exercise[]>([]);
-
-  // Keep ref in sync with state
-  useEffect(() => {
-    exercisesRef.current = exercises;
-  }, [exercises]);
-
-  // Load exercises
-  useEffect(() => {
-    loadExercises();
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [categoryId]);
-
-  const loadExercises = async () => {
-    if (!categoryId) return;
-    try {
-      const { getSettings } = require('../../db/queries');
-      const settings = await getSettings();
-      setHapticsEnabled(!!settings.haptics_enabled);
-
-      const cat = await getCategoryById(categoryId);
-      if (cat) setCategoryTitle(cat.title);
-
-      const exList = await getExercisesByCategory(categoryId);
-      setExercises(exList);
-      exercisesRef.current = exList; // Also set ref immediately
-
-      if (exList.length === 0) {
-        Alert.alert('Error', 'No exercises found in this category.');
-        router.back();
-        return;
-      }
-
-      setIsLoading(false);
-
-      // Mark category as started — stops grace period and restarts interval
-      await updateCategoryLastCompleted(categoryId, new Date().toISOString());
-      await refreshData();
-
-      // Start prep phase — use ref for duration so we never get stale data
-      startPrepPhaseWithRef(exList);
-    } catch (error) {
-      console.error('Load error:', error);
-      router.back();
-    }
-  };
-
-  const startPrepPhaseWithRef = (exList: Exercise[]) => {
-    setPhase('prep');
-    setRemainingSeconds(Config.PREP_DURATION_SECONDS);
-    startTimer(Config.PREP_DURATION_SECONDS, () => {
-      // Use provided exercise list directly — no stale closure
-      const firstEx = exList[0];
-      setPhase('active');
-
-      if (firstEx?.type === 'reps') {
-        // No timer for reps, wait for manual user action
-        if (timerRef.current) clearInterval(timerRef.current);
-      } else {
-        const duration = firstEx?.duration_seconds ?? 30;
-        setRemainingSeconds(duration);
-        startTimer(duration, () => {
-          setPhase('finished');
-        });
-      }
-    });
-  };
-
-  const startTimer = (seconds: number, onComplete: () => void) => {
-    if (timerRef.current) clearInterval(timerRef.current);
-
-    let remaining = seconds;
-    setRemainingSeconds(remaining);
-
-    timerRef.current = setInterval(() => {
-      remaining -= 1;
-      setRemainingSeconds(remaining);
-
-      // --- HAPTICS LOGIC ---
-      if (hapticsEnabled) {
-        if (remaining === 3 || remaining === 2 || remaining === 1) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        } else if (remaining === 0) {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
-      }
-      // ---------------------
-
-      if (remaining <= 0) {
-        if (timerRef.current) clearInterval(timerRef.current);
-        onComplete();
-      }
-    }, 1000);
-  };
-
-  /**
-   * Start a new exercise at the given index with prep → active → finished flow.
-   * Uses exercisesRef to avoid stale closure issues.
-   */
-  const startExerciseAtIndex = (index: number, side: 'left' | 'right' = 'left') => {
-    const ex = exercisesRef.current[index];
-    if (!ex) return;
-
-    setCurrentIndex(index);
-    setCurrentSide(side);
-    setPhase('prep');
-    setRemainingSeconds(Config.PREP_DURATION_SECONDS);
-
-    setTimeout(() => {
-      startTimer(Config.PREP_DURATION_SECONDS, () => {
-        setPhase('active');
-        if (ex.type === 'reps') {
-          // No timer for reps
-          if (timerRef.current) clearInterval(timerRef.current);
-        } else {
-          const duration = ex.duration_seconds ?? 30;
-          setRemainingSeconds(duration);
-          startTimer(duration, () => {
-            setPhase('finished');
-          });
-        }
-      });
-    }, 100);
-  };
-
-  const handleFinish = async () => {
-    if (timerRef.current) clearInterval(timerRef.current);
-
-    const currentExercise = exercisesRef.current[currentIndex];
-
-    // Two-sided: if just finished left side, switch to right
-    if (currentExercise?.is_two_sided && currentSide === 'left') {
-      startExerciseAtIndex(currentIndex, 'right');
-      return;
-    }
-
-    // Reset side for next exercise
-    setCurrentSide('left');
-
-    const nextIndex = currentIndex + 1;
-
-    if (nextIndex >= exercisesRef.current.length) {
-      // All exercises completed!
-      setPhase('completed');
-
-      try {
-        if (categoryId) {
-          const result = await onRoutineCompleted(categoryId);
-          await refreshStreaks();
-          await refreshData();
-          // Reschedule notifications with updated last_completed_at
-          await scheduleAllNotifications();
-        }
-      } catch (error) {
-        console.error('Streak update error:', error);
-      }
-    } else {
-      // Move to next exercise
-      startExerciseAtIndex(nextIndex, 'left');
-    }
-  };
-
-  const handleExit = () => {
-    Alert.alert(
-      'Exit',
-      'Are you sure you want to quit? This won\'t affect your streak.',
-      [
-        { text: 'Continue', style: 'cancel' },
-        {
-          text: 'Exit',
-          style: 'destructive',
-          onPress: () => {
-            if (timerRef.current) clearInterval(timerRef.current);
-            router.back();
-          },
-        },
-      ]
-    );
-  };
+  
+  const {
+    exercises,
+    categoryTitle,
+    currentIndex,
+    phase,
+    remainingSeconds,
+    isLoading,
+    currentSide,
+    currentExercise,
+    totalDuration,
+    handleFinish,
+    handleExit,
+    handleSkipTimer,
+    router
+  } = useExerciseSession(categoryId);
 
   if (isLoading || exercises.length === 0) {
     return (
@@ -232,11 +41,6 @@ export default function ExerciseScreen() {
       </View>
     );
   }
-
-  const currentExercise = exercises[currentIndex];
-  const totalDuration = phase === 'prep'
-    ? Config.PREP_DURATION_SECONDS
-    : currentExercise?.duration_seconds ?? 30;
 
   // Completed screen
   if (phase === 'completed') {
@@ -296,7 +100,7 @@ export default function ExerciseScreen() {
       </View>
 
       {/* Side Indicator for two-sided exercises */}
-      {currentExercise?.is_two_sided && (
+      {currentExercise?.is_two_sided ? (
         <View style={styles.sideIndicator}>
           <View style={[styles.sideBadge, currentSide === 'left' && styles.sideBadgeActive]}>
             <Text style={[styles.sideText, currentSide === 'left' && styles.sideTextActive]}>Left</Text>
@@ -306,7 +110,7 @@ export default function ExerciseScreen() {
             <Text style={[styles.sideText, currentSide === 'right' && styles.sideTextActive]}>Right</Text>
           </View>
         </View>
-      )}
+      ) : null}
 
       {/* Timer or Reps Display */}
       <View style={styles.timerContainer}>
@@ -352,7 +156,7 @@ export default function ExerciseScreen() {
               activeOpacity={0.8}
             >
               <Text style={styles.finishButtonText}>
-                {currentExercise.is_two_sided && currentSide === 'left'
+                {currentExercise?.is_two_sided && currentSide === 'left'
                   ? 'Switch Side →'
                   : currentIndex + 1 >= exercises.length ? 'Complete ✓' : 'Finish → Next'}
               </Text>
@@ -363,14 +167,7 @@ export default function ExerciseScreen() {
         {phase === 'active' && (
           <TouchableOpacity
             style={currentExercise?.type === 'reps' ? styles.finishButton : styles.skipTimerButton}
-            onPress={() => {
-              if (timerRef.current) clearInterval(timerRef.current);
-              if (currentExercise?.type === 'reps') {
-                handleFinish();
-              } else {
-                setPhase('finished');
-              }
-            }}
+            onPress={handleSkipTimer}
             activeOpacity={0.8}
           >
             {currentExercise?.type === 'reps' ? (
@@ -501,26 +298,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: Colors.textMuted,
   },
-  finishRepButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.accent,
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 30,
-    gap: 8,
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  finishRepText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFF',
-  },
   actionContainer: {
     alignItems: 'center',
     paddingBottom: 48,
@@ -556,7 +333,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.textMuted,
   },
-  // Completed
   completedContainer: {
     flex: 1,
     alignItems: 'center',

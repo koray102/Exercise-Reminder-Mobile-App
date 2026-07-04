@@ -1,7 +1,10 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { Config } from '../constants/config';
-import { getAllCategories, getSettings, Category, updateCategoryLastCompleted, updateStreaks } from '../db/queries';
+import { getAllCategories } from '../repositories/CategoryRepository';
+import { getSettings } from '../repositories/SettingsRepository';
+import { Category } from '../types';
+import { isWithinActiveWindow, addActiveMinutes } from '../utils/time';
 
 // Configure how notifications appear when app is in foreground
 Notifications.setNotificationHandler({
@@ -44,24 +47,6 @@ export async function requestNotificationPermissions(): Promise<boolean> {
   return true;
 }
 
-/**
- * Check if current time is within the active window
- */
-export function isWithinActiveWindow(startStr: string, endStr: string): boolean {
-  const now = new Date();
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-  const [startH, startM] = startStr.split(':').map(Number);
-  const [endH, endM] = endStr.split(':').map(Number);
-  const startMinutes = startH * 60 + startM;
-  const endMinutes = endH * 60 + endM;
-
-  if (startMinutes <= endMinutes) {
-    return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
-  } else {
-    return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
-  }
-}
 let isScheduling = false;
 let pendingSchedule = false;
 
@@ -85,16 +70,16 @@ export async function scheduleAllNotifications(): Promise<void> {
       const settings = await getSettings();
       if (!settings.manual_toggle_state) continue;
 
-      if (!isWithinActiveWindow(settings.active_window_start, settings.active_window_end)) {
+      // We still schedule a 'window_start' notification if they want, but it's optional.
+      if (!isWithinActiveWindow(new Date(), settings.active_window_start, settings.active_window_end)) {
         await scheduleWindowStartNotification(settings.active_window_start);
-        continue;
       }
 
       const categories = await getAllCategories();
       const activeCategories = categories.filter(c => c.is_active);
 
       for (const category of activeCategories) {
-        await scheduleCategoryNotifications(category);
+        await scheduleCategoryNotifications(category, settings.active_window_start, settings.active_window_end);
       }
     } while (pendingSchedule);
   } catch (error) {
@@ -129,113 +114,84 @@ async function scheduleWindowStartNotification(startStr: string): Promise<void> 
 }
 
 /**
- * Schedule grace period notifications for a single category.
- * Calculates delay based on real wall-clock time since last completion.
+ * Schedule grace period notifications for a single category using Timeline Simulation.
+ * Automatically skips time outside the active window.
  */
-async function scheduleCategoryNotifications(category: Category): Promise<void> {
-  const intervalSeconds = category.interval_minutes * 60;
-  const graceSeconds = Config.GRACE_PERIOD_MINUTES * 60;
+async function scheduleCategoryNotifications(category: Category, startStr: string, endStr: string): Promise<void> {
+  const intervalMinutes = category.interval_minutes;
+  const graceMinutes = Config.GRACE_PERIOD_MINUTES;
+  const now = new Date();
 
-  const cycleLength = intervalSeconds + graceSeconds;
-
-  // Calculate how far into the cycle we are
-  let elapsedSeconds = 0;
+  // 1. Determine when the current cycle started
+  let cycleStart = now;
   if (category.last_completed_at) {
-    const lastCompleted = new Date(category.last_completed_at).getTime();
-    elapsedSeconds = Math.floor((Date.now() - lastCompleted) / 1000);
-  }
-
-  const currentElapsed = elapsedSeconds % cycleLength;
-  const remainingInCurrentCycle = cycleLength - currentElapsed;
-
-  // 1. Schedule remainder of CURRENT cycle
-  if (currentElapsed < intervalSeconds) {
-    const remainingToInterval = intervalSeconds - currentElapsed;
-    await scheduleGraceNotifications(category, remainingToInterval, graceSeconds);
-  } else {
-    // If currently in grace period (interval expired, grace not yet expired)
-    const elapsedGrace = currentElapsed - intervalSeconds;
-    const remainingGrace = graceSeconds - elapsedGrace;
-
-    if (remainingGrace > 0) {
-      const fiveMinMark = graceSeconds - 5 * 60; // seconds into grace when 5 min remain
-      const warningDelay = fiveMinMark - elapsedGrace;
-      if (warningDelay > 1) {
-        await scheduleNotification(
-          category,
-          `⚠️ ${category.title} — 5 minutes remaining!`,
-          'grace_warning',
-          warningDelay
-        );
-      }
-
-      if (remainingGrace > 1) {
-        await scheduleNotification(
-          category,
-          `❌ ${category.title} — Time's up! Streak reset.`,
-          'grace_expired',
-          remainingGrace
-        );
-      }
+    const lastCompleted = new Date(category.last_completed_at);
+    // When would this cycle have naturally expired? (Accounting for active hours)
+    const expirationTime = addActiveMinutes(lastCompleted, intervalMinutes + graceMinutes, startStr, endStr);
+    
+    if (now > expirationTime) {
+      // The user completely missed the window and the streak is dead.
+      // We start counting from NOW so they get a fresh reminder.
+      cycleStart = now;
+    } else {
+      // Streak is still alive. The cycle started when they last completed it.
+      cycleStart = lastCompleted;
     }
   }
 
-  // 2. Schedule FUTURE cycles (up to 10 cycles ahead to ensure continuous loop)
+  // 2. Project the next 10 cycles into the future
   const MAX_CYCLES = 10;
-  let baseDelay = remainingInCurrentCycle;
+  let currentCycleStart = cycleStart;
+
   for (let i = 0; i < MAX_CYCLES; i++) {
-    // The next cycle starts at `baseDelay`. 
-    // Its interval finishes `intervalSeconds` after the cycle starts.
-    await scheduleGraceNotifications(category, baseDelay + intervalSeconds, graceSeconds);
-    baseDelay += cycleLength;
+    // Add interval time (ignoring time outside active window)
+    const intervalEnd = addActiveMinutes(currentCycleStart, intervalMinutes, startStr, endStr);
+    // Add grace time (ignoring time outside active window)
+    const graceEnd = addActiveMinutes(currentCycleStart, intervalMinutes + graceMinutes, startStr, endStr);
+
+    // Schedule: Main reminder when interval expires
+    if (intervalEnd > now) {
+      const delaySec = Math.floor((intervalEnd.getTime() - now.getTime()) / 1000);
+      await scheduleNotification(
+        category,
+        `🧘 ${category.title} — ${graceMinutes} minutes to start!`,
+        'grace_start',
+        delaySec
+      );
+    }
+
+    // Schedule: 5 minutes remaining warning
+    // We just subtract 5 minutes from the absolute graceEnd time. 
+    // This is a simple approximation so we don't need reverse active time math.
+    const warningTime = new Date(graceEnd.getTime() - 5 * 60000);
+    if (warningTime > now && warningTime > intervalEnd) {
+      const delaySec = Math.floor((warningTime.getTime() - now.getTime()) / 1000);
+      await scheduleNotification(
+        category,
+        `⚠️ ${category.title} — 5 minutes remaining!`,
+        'grace_warning',
+        delaySec
+      );
+    }
+
+    // Schedule: Expiry notification
+    if (graceEnd > now) {
+      const delaySec = Math.floor((graceEnd.getTime() - now.getTime()) / 1000);
+      await scheduleNotification(
+        category,
+        `❌ ${category.title} — Time's up! Streak reset.`,
+        'grace_expired',
+        delaySec
+      );
+    }
+
+    // The next cycle mathematically starts exactly when this cycle's grace period ends.
+    currentCycleStart = graceEnd;
   }
 }
 
 /**
- * Schedule the full set of grace notifications from a given delay.
- * @param delayToInterval - seconds until interval expires
- * @param graceSeconds - total grace period in seconds
- */
-async function scheduleGraceNotifications(
-  category: Category,
-  delayToInterval: number,
-  graceSeconds: number
-): Promise<void> {
-  // 1. Main reminder when interval expires
-  if (delayToInterval > 0) {
-    await scheduleNotification(
-      category,
-      `🧘 ${category.title} — ${Config.GRACE_PERIOD_MINUTES} minutes to start!`,
-      'grace_start',
-      delayToInterval
-    );
-  }
-
-  // 2. Warning at 5 minutes remaining
-  const warningDelay = delayToInterval + graceSeconds - 5 * 60;
-  if (warningDelay > 1) {
-    await scheduleNotification(
-      category,
-      `⚠️ ${category.title} — 5 minutes remaining!`,
-      'grace_warning',
-      warningDelay
-    );
-  }
-
-  // 3. Expiry notification
-  const expiryDelay = delayToInterval + graceSeconds;
-  if (expiryDelay > 1) {
-    await scheduleNotification(
-      category,
-      `❌ ${category.title} — Time's up! Streak reset.`,
-      'grace_expired',
-      expiryDelay
-    );
-  }
-}
-
-/**
- * Schedule a single notification (no action buttons).
+ * Schedule a single notification.
  */
 async function scheduleNotification(
   category: Category,
@@ -254,7 +210,6 @@ async function scheduleNotification(
         type,
       },
       sound: 'default',
-      // No categoryIdentifier — no action buttons
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
@@ -266,57 +221,24 @@ async function scheduleNotification(
 }
 
 /**
- * Set up notification categories — no action buttons.
- * Keep the function for backwards compatibility but register empty actions.
+ * Empty implementation for backwards compatibility.
  */
-export async function setupNotificationCategories(): Promise<void> {
-  // No action buttons — user just sees the notification
-}
+export async function setupNotificationCategories(): Promise<void> {}
 
 /**
  * Set up notification listeners.
- * - grace_expired: reset streak and restart cycle
- * - grace_start: reschedule next cycle after grace
- * - window_start: schedule all notifications
+ * Background listeners are unreliable, so we only handle responses (tapping the notification).
+ * The OS will handle delivering the pre-scheduled timeline, and database sync will happen lazily on app open.
  */
 export function setupNotificationListeners(): () => void {
-  const receivedSubscription = Notifications.addNotificationReceivedListener(
-    async (notification) => {
-      const data = notification.request.content.data as any;
-
-      if (data?.type === 'grace_expired' && data?.categoryId) {
-        // Grace period expired — reset streak and restart cycle
-        try {
-          // Reset streak to 0
-          await updateStreaks({ current_day_streak: 0 });
-          // Restart cycle by setting last_completed_at to now
-          await updateCategoryLastCompleted(data.categoryId, new Date().toISOString());
-          // Reschedule notifications for the new cycle
-          await scheduleAllNotifications();
-        } catch (e) {
-          console.warn('[Notifications] Grace expiry handling failed:', e);
-        }
-      }
-
-      if (data?.type === 'window_start') {
-        try {
-          await scheduleAllNotifications();
-        } catch (e) {
-          console.warn('[Notifications] Window start scheduling failed:', e);
-        }
-      }
-    }
-  );
-
-  // Response listener — just opens the app, no special actions
+  // Response listener — opens the app
   const responseSubscription = Notifications.addNotificationResponseReceivedListener(
     async (_response) => {
-      // Tapping any notification just opens the app — no button handling needed
+      // Tapping any notification opens the app, which mounts Dashboard and triggers streak evaluation.
     }
   );
 
   return () => {
-    receivedSubscription.remove();
     responseSubscription.remove();
   };
 }

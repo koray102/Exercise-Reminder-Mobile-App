@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useReducer, useEffect, useRef, ReactNode } from 'react';
-import {
-  Category, Exercise, Streaks, Settings,
-  getAllCategories, getExercisesByCategory, getStreaks, getSettings,
-} from '../db/queries';
+import React, { createContext, useContext, useReducer, useEffect, useRef, ReactNode, useCallback } from 'react';
+import { getAllCategories } from '../repositories/CategoryRepository';
+import { getExercisesByCategory } from '../repositories/ExerciseRepository';
+import { getStreaks } from '../repositories/StreakRepository';
+import { getSettings } from '../repositories/SettingsRepository';
+import { Category, Exercise, Streaks, Settings } from '../types';
 
 // ===== State Type =====
 interface AppState {
@@ -71,8 +72,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const isRefreshing = useRef(false);
 
-  const refreshData = async () => {
-    // Skip if a refresh is already in progress
+  const refreshData = useCallback(async () => {
     if (isRefreshing.current) {
       console.log('[AppContext] refreshData skipped — already in progress');
       return;
@@ -84,19 +84,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_LOADING', payload: true });
 
       const categories = await getAllCategories();
-      console.log('[AppContext] categories loaded:', categories.length);
-
       const streaks = await getStreaks();
-      console.log('[AppContext] streaks loaded');
-
       const settings = await getSettings();
-      console.log('[AppContext] settings loaded');
 
       dispatch({ type: 'SET_CATEGORIES', payload: categories });
       dispatch({ type: 'SET_STREAKS', payload: streaks });
       dispatch({ type: 'SET_SETTINGS', payload: settings });
 
-      // Load exercises for each category
       const exercisesMap: Record<string, Exercise[]> = {};
       for (const cat of categories) {
         exercisesMap[cat.id] = await getExercisesByCategory(cat.id);
@@ -111,20 +105,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       isRefreshing.current = false;
     }
-  };
+  }, []); // dispatch is stable
 
-  const refreshStreaks = async () => {
+  const refreshStreaks = useCallback(async () => {
     try {
       const streaks = await getStreaks();
       dispatch({ type: 'SET_STREAKS', payload: streaks });
     } catch (error) {
       console.error('Failed to refresh streaks:', error);
     }
-  };
+  }, []);
 
   useEffect(() => {
     refreshData();
-  }, []);
+  }, [refreshData]);
 
   return (
     <AppContext.Provider value={{ state, dispatch, refreshData, refreshStreaks }}>

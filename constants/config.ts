@@ -2,7 +2,7 @@
 
 export const Config = {
   // App version
-  APP_VERSION: '0.6',
+  APP_VERSION: '0.7',
 
   // Default active window
   DEFAULT_ACTIVE_WINDOW_START: '13:00',
