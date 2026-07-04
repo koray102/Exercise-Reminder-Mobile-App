@@ -170,10 +170,18 @@ export function useDashboard() {
     return isDateStringToday(c.last_routine_completed_at);
   });
 
+  const handleDragEnd = useCallback((data: Category[]) => {
+    setOrderedCategories(prev => {
+      const otherCategories = prev.filter(c => (c.type || 'stretch') !== activeTab);
+      return [...data, ...otherCategories];
+    });
+  }, [activeTab]);
+
   return {
     editMode, setEditMode,
     activeTab, setActiveTab,
     orderedCategories, setOrderedCategories,
+    handleDragEnd,
     refreshing, onRefresh,
     enterEditMode, saveEditMode, cancelEditMode,
     handleDeleteCategory, handleToggleActive,

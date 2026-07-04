@@ -66,7 +66,7 @@ export default function CategoryHeader({
       )}
 
       <View style={[styles.headerLeft, editMode && { marginLeft: 4 }]}>
-        {!editMode && (
+        {!editMode && category.type !== 'workout' && (
           <TouchableOpacity 
             style={[styles.activeToggle, { backgroundColor: category.is_active ? Colors.accent : '#FF4757' }]} 
             onPress={() => onToggleActive?.(category.id, category.title, category.is_active)}

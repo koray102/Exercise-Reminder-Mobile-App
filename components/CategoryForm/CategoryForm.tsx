@@ -1,10 +1,10 @@
-import React from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import React from 'react';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { useCategoryForm } from '../../hooks/useCategoryForm';
-import { ExerciseFormData } from './types';
 import ExerciseFormCard from './ExerciseFormCard';
+import { ExerciseFormData } from './types';
 
 interface Props {
   initialTitle?: string;
@@ -77,39 +77,39 @@ export default function CategoryForm({
               style={styles.input}
               value={title}
               onChangeText={setTitle}
-              placeholder={categoryType === 'workout' ? 'e.g. Barbell Row' : 'e.g. Scapular Winging'}
+              placeholder={categoryType === 'workout' ? 'e.g. Leg Day' : 'e.g. Scapular Winging'}
               placeholderTextColor={Colors.textMuted}
             />
           </View>
 
           {categoryType === 'stretch' && (
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Reminder Interval</Text>
-            <View style={styles.durationRow}>
-              <View style={styles.durationInput}>
-                <Text style={styles.durationLabel}>Hours</Text>
-                <TextInput
-                  style={styles.input}
-                  value={intervalHours}
-                  onChangeText={setIntervalHours}
-                  placeholder="1"
-                  placeholderTextColor={Colors.textMuted}
-                  keyboardType="number-pad"
-                />
-              </View>
-              <View style={styles.durationInput}>
-                <Text style={styles.durationLabel}>Minutes</Text>
-                <TextInput
-                  style={styles.input}
-                  value={intervalMinutes}
-                  onChangeText={setIntervalMinutes}
-                  placeholder="0"
-                  placeholderTextColor={Colors.textMuted}
-                  keyboardType="number-pad"
-                />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Reminder Interval</Text>
+              <View style={styles.durationRow}>
+                <View style={styles.durationInput}>
+                  <Text style={styles.durationLabel}>Hours</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={intervalHours}
+                    onChangeText={setIntervalHours}
+                    placeholder="1"
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="number-pad"
+                  />
+                </View>
+                <View style={styles.durationInput}>
+                  <Text style={styles.durationLabel}>Minutes</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={intervalMinutes}
+                    onChangeText={setIntervalMinutes}
+                    placeholder="0"
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="number-pad"
+                  />
+                </View>
               </View>
             </View>
-          </View>
           )}
         </View>
 

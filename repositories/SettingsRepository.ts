@@ -38,6 +38,18 @@ export function updateSettings(settings: Partial<Omit<Settings, 'id'>>): Promise
       fields.push('haptics_enabled = ?');
       args.push(settings.haptics_enabled);
     }
+    if (settings.vibration_intensity !== undefined) {
+      fields.push('vibration_intensity = ?');
+      args.push(settings.vibration_intensity);
+    }
+    if (settings.sound_enabled !== undefined) {
+      fields.push('sound_enabled = ?');
+      args.push(settings.sound_enabled);
+    }
+    if (settings.sound_volume !== undefined) {
+      fields.push('sound_volume = ?');
+      args.push(settings.sound_volume);
+    }
 
     if (fields.length > 0) {
       await db.runAsync(`UPDATE settings SET ${fields.join(', ')} WHERE id = 1`, ...args);

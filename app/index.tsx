@@ -31,6 +31,7 @@ export default function Dashboard() {
     editMode,
     orderedCategories,
     setOrderedCategories,
+    handleDragEnd,
     enterEditMode,
     saveEditMode,
     cancelEditMode,
@@ -176,7 +177,7 @@ export default function Dashboard() {
         data={displayCategories}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
-        onDragEnd={({ data }) => setOrderedCategories(data)}
+        onDragEnd={({ data }) => handleDragEnd(data)}
         ListHeaderComponent={listHeaderNode}
         ListFooterComponent={listFooterNode}
         containerStyle={styles.listContainer}

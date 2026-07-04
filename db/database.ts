@@ -77,7 +77,10 @@ async function initDatabase(database: SQLite.SQLiteDatabase): Promise<void> {
       active_window_end TEXT NOT NULL DEFAULT '02:00',
       manual_toggle_state INTEGER NOT NULL DEFAULT 1,
       manual_toggle_timestamp TEXT,
-      haptics_enabled INTEGER NOT NULL DEFAULT 1
+      haptics_enabled INTEGER NOT NULL DEFAULT 1,
+      vibration_intensity TEXT NOT NULL DEFAULT 'low',
+      sound_enabled INTEGER NOT NULL DEFAULT 1,
+      sound_volume TEXT NOT NULL DEFAULT 'medium'
     );
 
     CREATE TABLE IF NOT EXISTS streaks (
@@ -140,6 +143,36 @@ async function initDatabase(database: SQLite.SQLiteDatabase): Promise<void> {
   } catch (e: any) {
     if (!e.message?.includes('duplicate column')) {
       console.log('[DB] haptics_enabled column already exists');
+    }
+  }
+
+  // Migration: add vibration_intensity column to settings
+  try {
+    await database.runAsync("ALTER TABLE settings ADD COLUMN vibration_intensity TEXT NOT NULL DEFAULT 'low'");
+    console.log('[DB] Migration: added vibration_intensity column to settings');
+  } catch (e: any) {
+    if (!e.message?.includes('duplicate column')) {
+      console.log('[DB] vibration_intensity column already exists');
+    }
+  }
+
+  // Migration: add sound_enabled column to settings
+  try {
+    await database.runAsync('ALTER TABLE settings ADD COLUMN sound_enabled INTEGER NOT NULL DEFAULT 1');
+    console.log('[DB] Migration: added sound_enabled column to settings');
+  } catch (e: any) {
+    if (!e.message?.includes('duplicate column')) {
+      console.log('[DB] sound_enabled column already exists');
+    }
+  }
+
+  // Migration: add sound_volume column to settings
+  try {
+    await database.runAsync("ALTER TABLE settings ADD COLUMN sound_volume TEXT NOT NULL DEFAULT 'medium'");
+    console.log('[DB] Migration: added sound_volume column to settings');
+  } catch (e: any) {
+    if (!e.message?.includes('duplicate column')) {
+      console.log('[DB] sound_volume column already exists');
     }
   }
 

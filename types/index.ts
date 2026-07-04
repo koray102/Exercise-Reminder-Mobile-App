@@ -31,6 +31,9 @@ export interface Settings {
   manual_toggle_state: number;
   manual_toggle_timestamp: string | null;
   haptics_enabled: number;
+  vibration_intensity?: 'low' | 'medium' | 'high';
+  sound_enabled: number;
+  sound_volume?: 'low' | 'medium' | 'high';
 }
 
 export interface Streaks {

@@ -8,8 +8,18 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  LayoutAnimation,
+  Platform,
+  UIManager,
+  Vibration,
 } from 'react-native';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { Audio } from 'expo-av';
 import { Colors, MilestoneColors } from '../constants/Colors';
 import { Config } from '../constants/config';
 import { useApp } from '../contexts/AppContext';
@@ -24,6 +34,9 @@ export default function SettingsScreen() {
   const [windowEnd, setWindowEnd] = useState(Config.DEFAULT_ACTIVE_WINDOW_END);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
+  const [vibrationIntensity, setVibrationIntensity] = useState<'low' | 'medium' | 'high'>('low');
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [soundVolume, setSoundVolume] = useState<'low' | 'medium' | 'high'>('medium');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -37,6 +50,15 @@ export default function SettingsScreen() {
       setWindowEnd(settings.active_window_end);
       setNotificationsEnabled(!!settings.manual_toggle_state);
       setHapticsEnabled(!!settings.haptics_enabled);
+      if (settings.vibration_intensity) {
+        setVibrationIntensity(settings.vibration_intensity);
+      }
+      if (settings.sound_enabled !== undefined) {
+        setSoundEnabled(!!settings.sound_enabled);
+      }
+      if (settings.sound_volume) {
+        setSoundVolume(settings.sound_volume);
+      }
     } catch (error) {
       console.error('Load settings error:', error);
     } finally {
@@ -58,6 +80,7 @@ export default function SettingsScreen() {
   };
 
   const handleToggleHaptics = async (value: boolean) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setHapticsEnabled(value);
     try {
       await updateSettings({
@@ -66,6 +89,64 @@ export default function SettingsScreen() {
       await refreshData();
     } catch (error) {
       console.error('Haptics toggle error:', error);
+    }
+  };
+
+  const handleVibrationIntensityChange = async (intensity: 'low' | 'medium' | 'high') => {
+    setVibrationIntensity(intensity);
+    
+    if (intensity === 'low') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } else if (intensity === 'medium') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Vibration.vibrate(400);
+    } else if (intensity === 'high') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      Vibration.vibrate([0, 500, 100, 500]);
+    }
+
+    try {
+      await updateSettings({ vibration_intensity: intensity });
+    } catch (error) {
+      console.error('Vibration intensity update error:', error);
+    }
+  };
+
+  const handleToggleSound = async (value: boolean) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setSoundEnabled(value);
+    try {
+      await updateSettings({
+        sound_enabled: value ? 1 : 0,
+      });
+    } catch (error) {
+      console.error('Sound toggle error:', error);
+    }
+  };
+
+  const handleSoundVolumeChange = async (volumeLevel: 'low' | 'medium' | 'high') => {
+    setSoundVolume(volumeLevel);
+    
+    try {
+      const { sound } = await Audio.Sound.createAsync(require('../assets/sounds/beep.mp3'));
+      const volumeValue = volumeLevel === 'low' ? 0.3 : volumeLevel === 'medium' ? 0.6 : 1.0;
+      await sound.setVolumeAsync(volumeValue);
+      await sound.playAsync();
+      
+      // Auto-unload after playing to prevent memory leaks
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync();
+        }
+      });
+    } catch (e) {
+      console.error('Error playing test sound:', e);
+    }
+
+    try {
+      await updateSettings({ sound_volume: volumeLevel });
+    } catch (error) {
+      console.error('Sound volume update error:', error);
     }
   };
 
@@ -118,19 +199,92 @@ export default function SettingsScreen() {
           />
         </View>
 
-        <View style={styles.settingRow}>
-          <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Vibration (Haptics)</Text>
-            <Text style={styles.settingDesc}>
-              Vibrate during the last 3 seconds and when the exercise is finished.
-            </Text>
+        <View style={[styles.settingRow, { flexDirection: 'column', alignItems: 'stretch' }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Vibration (Haptics)</Text>
+              <Text style={styles.settingDesc}>
+                Vibrate during the last 3 seconds and when the exercise is finished.
+              </Text>
+            </View>
+            <Switch
+              value={hapticsEnabled}
+              onValueChange={handleToggleHaptics}
+              trackColor={{ false: Colors.surfaceBorder, true: Colors.accentMuted }}
+              thumbColor={hapticsEnabled ? Colors.accent : Colors.textMuted}
+            />
           </View>
-          <Switch
-            value={hapticsEnabled}
-            onValueChange={handleToggleHaptics}
-            trackColor={{ false: Colors.surfaceBorder, true: Colors.accentMuted }}
-            thumbColor={hapticsEnabled ? Colors.accent : Colors.textMuted}
-          />
+
+          {hapticsEnabled && (
+            <View style={styles.intensityContainer}>
+              <Text style={styles.intensityTitle}>Vibration Intensity</Text>
+              <View style={styles.intensityTabs}>
+              {(['low', 'medium', 'high'] as const).map((level) => (
+                <TouchableOpacity
+                  key={level}
+                  style={[
+                    styles.intensityTab,
+                    vibrationIntensity === level && styles.intensityTabActive,
+                  ]}
+                  onPress={() => handleVibrationIntensityChange(level)}
+                >
+                  <Text
+                    style={[
+                      styles.intensityTabText,
+                      vibrationIntensity === level && styles.intensityTabTextActive,
+                    ]}
+                  >
+                    {level.charAt(0).toUpperCase() + level.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+        </View>
+
+        <View style={[styles.settingRow, { flexDirection: 'column', alignItems: 'stretch' }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Sound Effects</Text>
+              <Text style={styles.settingDesc}>
+                Play sounds during the countdown and when finished.
+              </Text>
+            </View>
+            <Switch
+              value={soundEnabled}
+              onValueChange={handleToggleSound}
+              trackColor={{ false: Colors.surfaceBorder, true: Colors.accentMuted }}
+              thumbColor={soundEnabled ? Colors.accent : Colors.textMuted}
+            />
+          </View>
+
+          {soundEnabled && (
+            <View style={styles.intensityContainer}>
+              <Text style={styles.intensityTitle}>Volume Level</Text>
+              <View style={styles.intensityTabs}>
+                {(['low', 'medium', 'high'] as const).map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    style={[
+                      styles.intensityTab,
+                      soundVolume === level && styles.intensityTabActive,
+                    ]}
+                    onPress={() => handleSoundVolumeChange(level)}
+                  >
+                    <Text
+                      style={[
+                        styles.intensityTabText,
+                        soundVolume === level && styles.intensityTabTextActive,
+                      ]}
+                    >
+                      {level.charAt(0).toUpperCase() + level.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Current Status */}
@@ -291,6 +445,46 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textMuted,
     lineHeight: 16,
+  },
+  intensityContainer: {
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: Colors.surfaceBorder,
+    marginTop: 16,
+  },
+  intensityTitle: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  intensityTabs: {
+    flexDirection: 'row',
+    backgroundColor: Colors.backgroundTertiary,
+    borderRadius: 8,
+    padding: 4,
+  },
+  intensityTab: {
+    flex: 1,
+    paddingVertical: 6,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  intensityTabActive: {
+    backgroundColor: Colors.surface,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  intensityTabText: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    fontWeight: '600',
+  },
+  intensityTabTextActive: {
+    color: Colors.textPrimary,
   },
   statusBadge: {
     flexDirection: 'row',
