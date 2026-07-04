@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Alert } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { addCategory } from '../../repositories/CategoryRepository';
 import { addExercise } from '../../repositories/ExerciseRepository';
 import { generateId } from '../../utils/id';
@@ -61,12 +61,17 @@ export default function AddCategory() {
     }
   };
 
+  const pageTitle = categoryType === 'workout' ? 'New Workout' : 'New Stretching';
+
   return (
-    <CategoryForm
+    <>
+      <Stack.Screen options={{ title: pageTitle }} />
+      <CategoryForm
       onSave={handleSave}
       buttonText="Save"
       isSaving={isSaving}
       categoryType={categoryType}
     />
+    </>
   );
 }

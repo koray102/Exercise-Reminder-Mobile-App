@@ -77,7 +77,7 @@ export default function CategoryForm({
               style={styles.input}
               value={title}
               onChangeText={setTitle}
-              placeholder="e.g. Scapular Winging"
+              placeholder={categoryType === 'workout' ? 'e.g. Barbell Row' : 'e.g. Scapular Winging'}
               placeholderTextColor={Colors.textMuted}
             />
           </View>

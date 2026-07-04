@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import {
   getCategoryById,
   updateCategory,
@@ -141,8 +141,12 @@ export default function EditCategory() {
     );
   }
 
+  const pageTitle = initialData.type === 'workout' ? 'Edit Workout' : 'Edit Stretching';
+
   return (
-    <CategoryForm
+    <>
+      <Stack.Screen options={{ title: pageTitle }} />
+      <CategoryForm
       initialTitle={initialData.title}
       initialIntervalHours={initialData.intervalHours}
       initialIntervalMinutes={initialData.intervalMinutes}
@@ -153,6 +157,7 @@ export default function EditCategory() {
       onDelete={handleDelete}
       categoryType={initialData.type}
     />
+    </>
   );
 }
 
