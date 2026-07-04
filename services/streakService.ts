@@ -1,7 +1,9 @@
 import { getStreaks, updateStreaks, incrementStretchCount, markSkippedToday, resetDailySkipFlag } from '../repositories/StreakRepository';
 import { updateCategoryLastCompleted, updateCategoryRoutineCompleted, getAllCategories } from '../repositories/CategoryRepository';
+import { getSettings } from '../repositories/SettingsRepository';
 import { Config } from '../constants/config';
 import { getTodayString, isDateStringToday, isYesterday } from '../utils/date';
+import { addActiveMinutes } from '../utils/time';
 
 
 
@@ -108,11 +110,17 @@ export async function checkAllGracePeriods(): Promise<boolean> {
     for (const category of categories) {
       if (!category.is_active || !category.last_completed_at) continue;
 
-      const lastCompleted = new Date(category.last_completed_at).getTime();
-      const elapsedMinutes = (now - lastCompleted) / (1000 * 60);
-      const graceDeadline = category.interval_minutes + Config.GRACE_PERIOD_MINUTES;
+      const lastCompleted = new Date(category.last_completed_at);
+      const settings = await getSettings();
+      
+      const expirationTime = addActiveMinutes(
+        lastCompleted,
+        category.interval_minutes + Config.GRACE_PERIOD_MINUTES,
+        settings.active_window_start,
+        settings.active_window_end
+      );
 
-      if (elapsedMinutes >= graceDeadline) {
+      if (now >= expirationTime.getTime()) {
         // Grace period has expired — reset streak and restart cycle
         await onGraceExpired(category.id);
         anyExpired = true;

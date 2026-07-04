@@ -154,36 +154,13 @@ async function scheduleCategoryNotifications(category: Category, startStr: strin
       const delaySec = Math.floor((intervalEnd.getTime() - now.getTime()) / 1000);
       await scheduleNotification(
         category,
-        `🧘 ${category.title} — ${graceMinutes} minutes to start!`,
+        `🧘 ${category.title} — It's time to stretch!`,
         'grace_start',
         delaySec
       );
     }
 
-    // Schedule: 5 minutes remaining warning
-    // We just subtract 5 minutes from the absolute graceEnd time. 
-    // This is a simple approximation so we don't need reverse active time math.
-    const warningTime = new Date(graceEnd.getTime() - 5 * 60000);
-    if (warningTime > now && warningTime > intervalEnd) {
-      const delaySec = Math.floor((warningTime.getTime() - now.getTime()) / 1000);
-      await scheduleNotification(
-        category,
-        `⚠️ ${category.title} — 5 minutes remaining!`,
-        'grace_warning',
-        delaySec
-      );
-    }
 
-    // Schedule: Expiry notification
-    if (graceEnd > now) {
-      const delaySec = Math.floor((graceEnd.getTime() - now.getTime()) / 1000);
-      await scheduleNotification(
-        category,
-        `❌ ${category.title} — Time's up! Streak reset.`,
-        'grace_expired',
-        delaySec
-      );
-    }
 
     // The next cycle mathematically starts exactly when this cycle's grace period ends.
     currentCycleStart = graceEnd;
