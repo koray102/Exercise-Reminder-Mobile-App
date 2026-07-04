@@ -19,7 +19,7 @@ export function addExercise(exercise: Exercise): Promise<void> {
     console.log('[DB] addExercise:', exercise.id);
     const db = await getDatabase();
     await db.runAsync(
-      'INSERT INTO exercises (id, category_id, name, description, youtube_link, duration_seconds, sort_order, is_two_sided, type, reps) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO exercises (id, category_id, name, description, youtube_link, duration_seconds, sort_order, is_two_sided, type, reps, weight) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       exercise.id,
       exercise.category_id,
       exercise.name,
@@ -29,7 +29,8 @@ export function addExercise(exercise: Exercise): Promise<void> {
       exercise.sort_order,
       exercise.is_two_sided,
       exercise.type || 'time',
-      exercise.reps || 0
+      exercise.reps || 0,
+      exercise.weight || ''
     );
     console.log('[DB] addExercise OK');
   });
@@ -40,13 +41,16 @@ export function updateExercise(exercise: Exercise): Promise<void> {
     console.log('[DB] updateExercise:', exercise.id);
     const db = await getDatabase();
     await db.runAsync(
-      'UPDATE exercises SET name = ?, description = ?, youtube_link = ?, duration_seconds = ?, sort_order = ?, is_two_sided = ? WHERE id = ?',
+      'UPDATE exercises SET name = ?, description = ?, youtube_link = ?, duration_seconds = ?, sort_order = ?, is_two_sided = ?, type = ?, reps = ?, weight = ? WHERE id = ?',
       exercise.name,
       exercise.description ?? '',
       exercise.youtube_link ?? '',
       exercise.duration_seconds,
       exercise.sort_order,
       exercise.is_two_sided ?? 0,
+      exercise.type || 'time',
+      exercise.reps || 0,
+      exercise.weight || '',
       exercise.id
     );
     console.log('[DB] updateExercise OK');

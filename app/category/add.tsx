@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Alert } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { addCategory } from '../../repositories/CategoryRepository';
 import { addExercise } from '../../repositories/ExerciseRepository';
 import { generateId } from '../../utils/id';
@@ -11,6 +11,8 @@ import { ExerciseFormData } from '../../components/CategoryForm/types';
 
 export default function AddCategory() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ type?: 'stretch' | 'workout' }>();
+  const categoryType = params.type || 'stretch';
   const { refreshData } = useApp();
   const [isSaving, setIsSaving] = useState(false);
 
@@ -26,6 +28,7 @@ export default function AddCategory() {
         sort_order: 0,
         last_completed_at: null,
         last_routine_completed_at: null,
+        type: categoryType,
       });
 
       for (let i = 0; i < data.validExercises.length; i++) {
@@ -43,6 +46,7 @@ export default function AddCategory() {
           is_two_sided: ex.is_two_sided ? 1 : 0,
           type: ex.type,
           reps: parseInt(ex.reps) || 0,
+          weight: ex.weight || '',
         });
       }
 
@@ -62,6 +66,7 @@ export default function AddCategory() {
       onSave={handleSave}
       buttonText="Save"
       isSaving={isSaving}
+      categoryType={categoryType}
     />
   );
 }

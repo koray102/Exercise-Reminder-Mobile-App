@@ -7,6 +7,7 @@ export interface Category {
   created_at: string;
   last_completed_at: string | null;
   last_routine_completed_at: string | null;
+  type?: 'stretch' | 'workout'; // New field for workouts
 }
 
 export interface Exercise {
@@ -20,6 +21,7 @@ export interface Exercise {
   is_two_sided: number;
   type?: 'time' | 'reps';
   reps?: number;
+  weight?: string; // New field for workouts
 }
 
 export interface Settings {

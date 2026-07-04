@@ -38,7 +38,9 @@ export default function Dashboard() {
     handleToggleActive,
     displayCategories,
     hasCategories,
-    isTodayCompleted
+    isTodayCompleted,
+    activeTab,
+    setActiveTab,
   } = useDashboard();
 
   // Overlay animation
@@ -102,7 +104,7 @@ export default function Dashboard() {
 
   const ListHeader = () => (
     <>
-      {!editMode && (
+      {!editMode && activeTab === 'stretch' && (
         <StreakDisplay
           currentStreak={streaks?.current_day_streak ?? 0}
           totalCount={streaks?.total_stretch_count ?? 0}
@@ -111,8 +113,23 @@ export default function Dashboard() {
       )}
 
       <View style={styles.sectionHeader}>
+        <View style={styles.tabContainer}>
+          <TouchableOpacity 
+            style={[styles.tabButton, activeTab === 'stretch' && styles.tabButtonActive]}
+            onPress={() => setActiveTab('stretch')}
+          >
+            <Text style={[styles.tabText, activeTab === 'stretch' && styles.tabTextActive]}>Stretching</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.tabButton, activeTab === 'workout' && styles.tabButtonActive]}
+            onPress={() => setActiveTab('workout')}
+          >
+            <Text style={[styles.tabText, activeTab === 'workout' && styles.tabTextActive]}>Workout</Text>
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.sectionTitle}>
-          {editMode ? 'Edit Mode' : 'Categories'}
+          {editMode ? 'Edit Mode' : ''}
         </Text>
         {editMode ? (
           <TouchableOpacity onPress={saveEditMode} style={styles.doneButton}>
@@ -168,7 +185,7 @@ export default function Dashboard() {
       />
 
       {/* FAB — hide in edit mode */}
-      {!editMode && <FAB onPress={() => router.push('/category/add')} />}
+      {!editMode && <FAB onPress={() => router.push(`/category/add?type=${activeTab}`)} />}
 
       {/* Cancel edit mode button */}
       {editMode && (
@@ -222,6 +239,31 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: Colors.textPrimary,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 4,
+    flex: 1,
+    marginRight: 12,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  tabButtonActive: {
+    backgroundColor: Colors.accent,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  tabTextActive: {
+    color: '#000000',
   },
   settingsButton: {
     padding: 4,

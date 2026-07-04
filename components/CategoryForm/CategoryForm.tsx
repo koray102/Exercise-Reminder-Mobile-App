@@ -15,6 +15,7 @@ interface Props {
   onSave: (data: { title: string; totalIntervalMinutes: number; validExercises: ExerciseFormData[] }) => Promise<void>;
   buttonText: string;
   onDelete?: () => void;
+  categoryType?: 'stretch' | 'workout';
 }
 
 export default function CategoryForm({
@@ -26,6 +27,7 @@ export default function CategoryForm({
   onSave,
   buttonText,
   onDelete,
+  categoryType = 'stretch',
 }: Props) {
   const {
     title, setTitle,
@@ -80,6 +82,7 @@ export default function CategoryForm({
             />
           </View>
 
+          {categoryType === 'stretch' && (
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Reminder Interval</Text>
             <View style={styles.durationRow}>
@@ -107,6 +110,7 @@ export default function CategoryForm({
               </View>
             </View>
           </View>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -125,6 +129,7 @@ export default function CategoryForm({
               exercise={exercise}
               onUpdate={updateExerciseForm}
               onRemove={removeExerciseForm}
+              categoryType={categoryType}
             />
           ))}
 

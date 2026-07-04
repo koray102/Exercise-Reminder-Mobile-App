@@ -23,12 +23,12 @@ export default function EditCategory() {
   const params = useLocalSearchParams();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { refreshData } = useApp();
-
   const [initialData, setInitialData] = useState<{
     title: string;
     intervalHours: string;
     intervalMinutes: string;
     exercises: ExerciseFormData[];
+    type: 'stretch' | 'workout';
   } | null>(null);
   
   const [isSaving, setIsSaving] = useState(false);
@@ -65,7 +65,9 @@ export default function EditCategory() {
           is_two_sided: !!ex.is_two_sided,
           type: ex.type || 'time',
           reps: String(ex.reps || 15),
-        }))
+          weight: ex.weight || '',
+        })),
+        type: category.type as 'stretch' | 'workout' || 'stretch',
       });
     } catch (error) {
       console.error('Load error:', error);
@@ -76,7 +78,7 @@ export default function EditCategory() {
     if (!id) return;
     setIsSaving(true);
     try {
-      await updateCategory(id, data.title, data.totalIntervalMinutes);
+      await updateCategory(id, data.title, data.totalIntervalMinutes, initialData?.type);
 
       await deleteExercisesByCategory(id);
 
@@ -95,6 +97,7 @@ export default function EditCategory() {
           is_two_sided: ex.is_two_sided ? 1 : 0,
           type: ex.type,
           reps: parseInt(ex.reps) || 0,
+          weight: ex.weight || '',
         });
       }
 
@@ -148,6 +151,7 @@ export default function EditCategory() {
       isSaving={isSaving}
       buttonText="Save Changes"
       onDelete={handleDelete}
+      categoryType={initialData.type}
     />
   );
 }

@@ -88,12 +88,13 @@ export default function CategoryHeader({
             >
               {category.title}
             </Text>
-            {!editMode && !!category.is_active && (
+            {!editMode && !!category.is_active && category.type !== 'workout' && (
               <CountdownBadge remainingMinutes={remainingMinutes} countdownMode={countdownMode} />
             )}
           </View>
           <Text style={styles.categoryMeta}>
-            {exercises.length} exercise{exercises.length !== 1 ? 's' : ''} · {formatDuration(totalDuration)} · Every {category.interval_minutes} min
+            {exercises.length} exercise{exercises.length !== 1 ? 's' : ''} · {formatDuration(totalDuration)}
+            {category.type !== 'workout' && ` · Every ${category.interval_minutes} min`}
           </Text>
         </View>
       </View>

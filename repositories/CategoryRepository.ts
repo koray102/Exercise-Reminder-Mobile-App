@@ -26,26 +26,28 @@ export function addCategory(category: Omit<Category, 'created_at'>): Promise<voi
     console.log('[DB] addCategory:', category.id, category.title);
     const db = await getDatabase();
     await db.runAsync(
-      'INSERT INTO categories (id, title, interval_minutes, is_active, sort_order, last_completed_at) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO categories (id, title, interval_minutes, is_active, sort_order, last_completed_at, type) VALUES (?, ?, ?, ?, ?, ?, ?)',
       category.id,
       category.title,
       category.interval_minutes,
       category.is_active,
       category.sort_order ?? 0,
-      category.last_completed_at ?? null
+      category.last_completed_at ?? null,
+      category.type ?? 'stretch'
     );
     console.log('[DB] addCategory OK');
   });
 }
 
-export function updateCategory(id: string, title: string, interval_minutes: number): Promise<void> {
+export function updateCategory(id: string, title: string, interval_minutes: number, type?: 'stretch' | 'workout'): Promise<void> {
   return withDbMutex(async () => {
     console.log('[DB] updateCategory:', id);
     const db = await getDatabase();
     await db.runAsync(
-      'UPDATE categories SET title = ?, interval_minutes = ? WHERE id = ?',
+      'UPDATE categories SET title = ?, interval_minutes = ?, type = ? WHERE id = ?',
       title,
       interval_minutes,
+      type ?? 'stretch',
       id
     );
     console.log('[DB] updateCategory OK');

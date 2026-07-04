@@ -76,7 +76,7 @@ export async function scheduleAllNotifications(): Promise<void> {
       }
 
       const categories = await getAllCategories();
-      const activeCategories = categories.filter(c => c.is_active);
+      const activeCategories = categories.filter(c => c.is_active && c.type !== 'workout');
 
       for (const category of activeCategories) {
         await scheduleCategoryNotifications(category, settings.active_window_start, settings.active_window_end);

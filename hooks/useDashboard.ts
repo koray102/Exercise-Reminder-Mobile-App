@@ -11,6 +11,7 @@ import { useApp } from '../contexts/AppContext';
 export function useDashboard() {
   const { state: { categories }, refreshData, refreshStreaks } = useApp();
   const [editMode, setEditMode] = useState(false);
+  const [activeTab, setActiveTab] = useState<'stretch' | 'workout'>('stretch');
   const [orderedCategories, setOrderedCategories] = useState<Category[]>(categories);
   const [refreshing, setRefreshing] = useState(false);
   const [pendingDeletions, setPendingDeletions] = useState<string[]>([]);
@@ -153,22 +154,25 @@ export function useDashboard() {
     );
   }, [refreshData]);
 
+  const filteredCategories = categories.filter(c => (c.type || 'stretch') === activeTab);
+
   const displayCategories = editMode 
-    ? orderedCategories 
-    : [...categories].sort((a, b) => {
+    ? orderedCategories.filter(c => (c.type || 'stretch') === activeTab)
+    : [...filteredCategories].sort((a, b) => {
         if (a.is_active === b.is_active) return (a.sort_order ?? 0) - (b.sort_order ?? 0);
         return a.is_active ? -1 : 1;
       });
 
   const hasCategories = displayCategories.length > 0;
 
-  const activeCategories = categories.filter(c => c.is_active);
+  const activeCategories = categories.filter(c => c.is_active && (c.type || 'stretch') === 'stretch');
   const isTodayCompleted = activeCategories.length > 0 && activeCategories.every(c => {
     return isDateStringToday(c.last_routine_completed_at);
   });
 
   return {
     editMode, setEditMode,
+    activeTab, setActiveTab,
     orderedCategories, setOrderedCategories,
     refreshing, onRefresh,
     enterEditMode, saveEditMode, cancelEditMode,

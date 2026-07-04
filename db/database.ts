@@ -152,6 +152,26 @@ async function initDatabase(database: SQLite.SQLiteDatabase): Promise<void> {
       console.log('[DB] last_routine_completed_at column already exists');
     }
   }
+
+  // Migration: add type column to categories
+  try {
+    await database.runAsync("ALTER TABLE categories ADD COLUMN type TEXT NOT NULL DEFAULT 'stretch'");
+    console.log('[DB] Migration: added type column to categories');
+  } catch (e: any) {
+    if (!e.message?.includes('duplicate column')) {
+      console.log('[DB] type column already exists');
+    }
+  }
+
+  // Migration: add weight column to exercises
+  try {
+    await database.runAsync("ALTER TABLE exercises ADD COLUMN weight TEXT NOT NULL DEFAULT ''");
+    console.log('[DB] Migration: added weight column to exercises');
+  } catch (e: any) {
+    if (!e.message?.includes('duplicate column')) {
+      console.log('[DB] weight column already exists');
+    }
+  }
 }
 
 export async function closeDatabase(): Promise<void> {

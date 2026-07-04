@@ -9,9 +9,10 @@ interface Props {
   index: number;
   onUpdate: (index: number, field: keyof ExerciseFormData, value: string | boolean) => void;
   onRemove: (index: number) => void;
+  categoryType?: 'stretch' | 'workout';
 }
 
-export default function ExerciseFormCard({ exercise, index, onUpdate, onRemove }: Props) {
+export default function ExerciseFormCard({ exercise, index, onUpdate, onRemove, categoryType = 'stretch' }: Props) {
   return (
     <View style={styles.exerciseCard}>
       <View style={styles.exerciseCardHeader}>
@@ -105,7 +106,22 @@ export default function ExerciseFormCard({ exercise, index, onUpdate, onRemove }
         </View>
       )}
 
-      {/* Two-Sided Toggle */}
+      {/* Weight Field (Only for Workouts) */}
+      {categoryType === 'workout' && (
+        <View style={styles.inputGroup}>
+          <Text style={styles.durationLabel}>Weight (e.g. 50kg, 20lbs)</Text>
+          <TextInput
+            style={styles.input}
+            value={exercise.weight}
+            onChangeText={v => onUpdate(index, 'weight', v)}
+            placeholder="Weight"
+            placeholderTextColor={Colors.textMuted}
+          />
+        </View>
+      )}
+
+      {/* Two-Sided Toggle (Only for Stretches) */}
+      {categoryType === 'stretch' && (
       <View style={styles.twoSidedRow}>
         <View style={{ flex: 1 }}>
           <Text style={styles.twoSidedLabel}>Two-Sided</Text>
@@ -118,6 +134,7 @@ export default function ExerciseFormCard({ exercise, index, onUpdate, onRemove }
           thumbColor={exercise.is_two_sided ? Colors.accent : Colors.textMuted}
         />
       </View>
+      )}
     </View>
   );
 }
@@ -169,6 +186,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.textMuted,
     marginBottom: 4,
+  },
+  inputGroup: {
+    marginTop: 8,
   },
   twoSidedRow: {
     flexDirection: 'row',

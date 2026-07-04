@@ -10,9 +10,10 @@ interface Props {
   categoryId: string;
   height: SharedValue<number>;
   onStartExercise: (categoryId: string) => void;
+  categoryType?: 'stretch' | 'workout';
 }
 
-export default function CategoryContent({ exercises, categoryId, height, onStartExercise }: Props) {
+export default function CategoryContent({ exercises, categoryId, height, onStartExercise, categoryType = 'stretch' }: Props) {
   const contentStyle = useAnimatedStyle(() => ({
     opacity: height.value,
     maxHeight: interpolate(height.value, [0, 1], [0, 1000]),
@@ -64,10 +65,16 @@ export default function CategoryContent({ exercises, categoryId, height, onStart
                   <Text style={styles.youtubeLinkText}>Video</Text>
                 </TouchableOpacity>
               ) : null}
-              {exercise.is_two_sided ? (
+              {categoryType === 'stretch' && exercise.is_two_sided ? (
                 <View style={styles.twoSidedBadge}>
                   <Ionicons name="swap-horizontal" size={12} color={Colors.secondary} />
                   <Text style={styles.twoSidedText}>2-Sided</Text>
+                </View>
+              ) : null}
+              {categoryType === 'workout' && exercise.weight ? (
+                <View style={styles.weightBadge}>
+                  <Ionicons name="barbell-outline" size={12} color="#000000" />
+                  <Text style={styles.weightText}>{exercise.weight}</Text>
                 </View>
               ) : null}
             </View>
@@ -75,7 +82,7 @@ export default function CategoryContent({ exercises, categoryId, height, onStart
         </View>
       ))}
 
-      {exercises.length > 0 && (
+      {exercises.length > 0 && categoryType === 'stretch' && (
         <TouchableOpacity
           style={styles.startButton}
           onPress={() => onStartExercise(categoryId)}
@@ -172,6 +179,20 @@ const styles = StyleSheet.create({
   twoSidedText: {
     fontSize: 11,
     color: Colors.secondary,
+    fontWeight: '600',
+  },
+  weightBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.surfaceHover,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  weightText: {
+    fontSize: 11,
+    color: '#000000',
     fontWeight: '600',
   },
   startButton: {

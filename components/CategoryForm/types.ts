@@ -8,6 +8,7 @@ export interface ExerciseFormData {
   is_two_sided: boolean;
   type: 'time' | 'reps';
   reps: string;
+  weight: string;
 }
 
 export const emptyExercise: ExerciseFormData = {
@@ -19,4 +20,5 @@ export const emptyExercise: ExerciseFormData = {
   is_two_sided: false,
   type: 'time',
   reps: '15',
+  weight: '',
 };

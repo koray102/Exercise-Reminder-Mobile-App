@@ -55,7 +55,7 @@ export async function evaluateDailyStreak(): Promise<void> {
 
   // Check if ALL active categories are completed TODAY (using Local Time)
   const categories = await getAllCategories();
-  const activeCategories = categories.filter(c => c.is_active);
+  const activeCategories = categories.filter(c => c.is_active && c.type !== 'workout');
   const allCompletedToday = activeCategories.length > 0 && activeCategories.every(c => {
     return isDateStringToday(c.last_routine_completed_at);
   });
@@ -108,7 +108,7 @@ export async function checkAllGracePeriods(): Promise<boolean> {
     const now = Date.now();
 
     for (const category of categories) {
-      if (!category.is_active || !category.last_completed_at) continue;
+      if (!category.is_active || !category.last_completed_at || category.type === 'workout') continue;
 
       const lastCompleted = new Date(category.last_completed_at);
       const settings = await getSettings();

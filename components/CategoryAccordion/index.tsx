@@ -159,6 +159,7 @@ const CategoryAccordion = React.memo(({
           categoryId={category.id}
           height={height}
           onStartExercise={onStartExercise}
+          categoryType={category.type as 'stretch' | 'workout'}
         />
       )}
     </Animated.View>
