@@ -8,6 +8,7 @@ import Animated, {
   withSequence,
   withTiming,
   interpolate,
+  Easing,
 } from 'react-native-reanimated';
 import { Colors, getStreakColor, MilestoneColors } from '../constants/Colors';
 import { Config } from '../constants/config';
@@ -16,14 +17,16 @@ interface StreakDisplayProps {
   currentStreak: number;
   totalCount: number;
   isTodayCompleted?: boolean;
+  isWorkoutMode?: boolean;
 }
 
-export default function StreakDisplay({ currentStreak, totalCount, isTodayCompleted = false }: StreakDisplayProps) {
+export default function StreakDisplay({ currentStreak, totalCount, isTodayCompleted = false, isWorkoutMode = false }: StreakDisplayProps) {
   // Determine color based on completion status
   const streakColor = isTodayCompleted ? '#00D4AA' : '#FFFFFF';
   const scale = useSharedValue(0);
   const glow = useSharedValue(0);
   const counterScale = useSharedValue(0);
+  const workoutAnim = useSharedValue(isWorkoutMode ? 1 : 0);
 
   useEffect(() => {
     scale.value = 1; // 500ms içinde düz şekilde büyür
@@ -43,9 +46,25 @@ export default function StreakDisplay({ currentStreak, totalCount, isTodayComple
     }
   }, [currentStreak, isTodayCompleted]);
 
-  const animatedContainerStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
+  useEffect(() => {
+    workoutAnim.value = withTiming(isWorkoutMode ? 1 : 0, { 
+      duration: 600,
+      easing: Easing.bezier(0.25, 0.1, 0.25, 1)
+    });
+  }, [isWorkoutMode]);
+
+  const animatedContainerStyle = useAnimatedStyle(() => {
+    const workoutScale = interpolate(workoutAnim.value, [0, 1], [1, 0.75]);
+    const workoutOpacity = interpolate(workoutAnim.value, [0, 1], [1, 0.4]);
+    const workoutMargin = interpolate(workoutAnim.value, [0, 1], [0, -30]);
+
+    return {
+      transform: [{ scale: scale.value * workoutScale }],
+      opacity: workoutOpacity,
+      marginTop: workoutMargin,
+      marginBottom: workoutMargin,
+    };
+  });
 
   const animatedGlowStyle = useAnimatedStyle(() => {
     if (isTodayCompleted) {

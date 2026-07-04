@@ -102,13 +102,14 @@ export default function Dashboard() {
     );
   }
 
-  const ListHeader = () => (
-    <>
-      {!editMode && activeTab === 'stretch' && (
+  const listHeaderNode = (
+    <View style={{ paddingBottom: 8 }}>
+      {!editMode && (
         <StreakDisplay
           currentStreak={streaks?.current_day_streak ?? 0}
           totalCount={streaks?.total_stretch_count ?? 0}
           isTodayCompleted={isTodayCompleted}
+          isWorkoutMode={activeTab === 'workout'}
         />
       )}
 
@@ -155,10 +156,10 @@ export default function Dashboard() {
           </Text>
         </View>
       )}
-    </>
+    </View>
   );
 
-  const ListFooter = () => (
+  const listFooterNode = (
     <View style={{ height: editMode ? 80 : 100 }} />
   );
 
@@ -176,8 +177,8 @@ export default function Dashboard() {
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         onDragEnd={({ data }) => setOrderedCategories(data)}
-        ListHeaderComponent={ListHeader}
-        ListFooterComponent={ListFooter}
+        ListHeaderComponent={listHeaderNode}
+        ListFooterComponent={listFooterNode}
         containerStyle={styles.listContainer}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
