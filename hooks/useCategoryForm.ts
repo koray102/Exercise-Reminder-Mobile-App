@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Alert } from 'react-native';
 import { ExerciseFormData, emptyExercise } from '../components/CategoryForm/types';
+import { generateId } from '../utils/id';
 
 export function useCategoryForm(
   initialTitle = '',
@@ -8,14 +9,20 @@ export function useCategoryForm(
   initialIntervalM = '0',
   initialExercises: ExerciseFormData[] = [{ ...emptyExercise }]
 ) {
+  // Ensure initial exercises have a unique ID for DraggableFlatList keys
+  const initializedExercises = initialExercises.map(ex => ({
+    ...ex,
+    id: ex.id || generateId()
+  }));
+
   const [title, setTitle] = useState(initialTitle);
   const [intervalHours, setIntervalHours] = useState(initialIntervalH);
   const [intervalMinutes, setIntervalMinutes] = useState(initialIntervalM);
-  const [exercises, setExercises] = useState<ExerciseFormData[]>(initialExercises);
+  const [exercises, setExercises] = useState<ExerciseFormData[]>(initializedExercises);
   const [isSaving, setIsSaving] = useState(false);
 
   const addExerciseForm = () => {
-    setExercises([...exercises, { ...emptyExercise }]);
+    setExercises([...exercises, { ...emptyExercise, id: generateId() }]);
   };
 
   const removeExerciseForm = (index: number) => {
@@ -26,6 +33,10 @@ export function useCategoryForm(
     const updated = [...exercises];
     updated[index] = { ...updated[index], [field]: value };
     setExercises(updated);
+  };
+
+  const handleDragEnd = (data: ExerciseFormData[]) => {
+    setExercises(data);
   };
 
   const validate = () => {
@@ -52,6 +63,7 @@ export function useCategoryForm(
     exercises, setExercises,
     isSaving, setIsSaving,
     addExerciseForm, removeExerciseForm, updateExerciseForm,
+    handleDragEnd,
     validate
   };
 }

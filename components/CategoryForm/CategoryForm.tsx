@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useCallback } from 'react';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import DraggableFlatList, { ScaleDecorator, RenderItemParams } from 'react-native-draggable-flatlist';
 import { Colors } from '../../constants/Colors';
 import { useCategoryForm } from '../../hooks/useCategoryForm';
 import ExerciseFormCard from './ExerciseFormCard';
@@ -36,6 +37,7 @@ export default function CategoryForm({
     exercises,
     isSaving, setIsSaving,
     addExerciseForm, removeExerciseForm, updateExerciseForm,
+    handleDragEnd,
     validate
   } = useCategoryForm(initialTitle, initialIntervalHours, initialIntervalMinutes, initialExercises);
 
@@ -57,102 +59,121 @@ export default function CategoryForm({
 
   const currentIsSaving = isSaving || externalIsSaving;
 
+  const renderItem = useCallback(({ item, getIndex, drag, isActive }: RenderItemParams<ExerciseFormData>) => {
+    const index = getIndex();
+    if (index === undefined) return null;
+    
+    return (
+      <ScaleDecorator>
+        <ExerciseFormCard
+          index={index}
+          exercise={item}
+          onUpdate={updateExerciseForm}
+          onRemove={removeExerciseForm}
+          categoryType={categoryType}
+          drag={drag}
+          isActive={isActive}
+        />
+      </ScaleDecorator>
+    );
+  }, [updateExerciseForm, removeExerciseForm, categoryType]);
+
+  const listHeader = (
+    <View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Category Info</Text>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Title</Text>
+          <TextInput
+            style={styles.input}
+            value={title}
+            onChangeText={setTitle}
+            placeholder={categoryType === 'workout' ? 'e.g. Leg Day' : 'e.g. Scapular Winging'}
+            placeholderTextColor={Colors.textMuted}
+          />
+        </View>
+
+        {categoryType === 'stretch' && (
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Reminder Interval</Text>
+            <View style={styles.durationRow}>
+              <View style={styles.durationInput}>
+                <Text style={styles.durationLabel}>Hours</Text>
+                <TextInput
+                  style={styles.input}
+                  value={intervalHours}
+                  onChangeText={setIntervalHours}
+                  placeholder="1"
+                  placeholderTextColor={Colors.textMuted}
+                  keyboardType="number-pad"
+                />
+              </View>
+              <View style={styles.durationInput}>
+                <Text style={styles.durationLabel}>Minutes</Text>
+                <TextInput
+                  style={styles.input}
+                  value={intervalMinutes}
+                  onChangeText={setIntervalMinutes}
+                  placeholder="0"
+                  placeholderTextColor={Colors.textMuted}
+                  keyboardType="number-pad"
+                />
+              </View>
+            </View>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.exerciseHeader}>
+        <Text style={styles.sectionTitle}>Exercises</Text>
+        <TouchableOpacity style={styles.addExerciseBtn} onPress={addExerciseForm}>
+          <Ionicons name="add-circle" size={24} color={Colors.accent} />
+          <Text style={styles.addExerciseText}>Add</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const listFooter = (
+    <View style={{ paddingBottom: 100 }}>
+      {exercises.length === 0 && (
+        <View style={styles.emptyExercises}>
+          <Text style={styles.emptyText}>No exercises added yet</Text>
+        </View>
+      )}
+
+      {onDelete && (
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={onDelete}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="trash-outline" size={20} color={Colors.error} />
+          <Text style={styles.deleteButtonText}>Delete Category</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView
-        style={styles.scrollView}
+      <DraggableFlatList
+        data={exercises}
+        onDragEnd={({ data }) => handleDragEnd(data)}
+        keyExtractor={(item) => item.id!}
+        renderItem={renderItem}
+        ListHeaderComponent={listHeader}
+        ListFooterComponent={listFooter}
+        containerStyle={styles.listContainer}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Category Info</Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Title</Text>
-            <TextInput
-              style={styles.input}
-              value={title}
-              onChangeText={setTitle}
-              placeholder={categoryType === 'workout' ? 'e.g. Leg Day' : 'e.g. Scapular Winging'}
-              placeholderTextColor={Colors.textMuted}
-            />
-          </View>
-
-          {categoryType === 'stretch' && (
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Reminder Interval</Text>
-              <View style={styles.durationRow}>
-                <View style={styles.durationInput}>
-                  <Text style={styles.durationLabel}>Hours</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={intervalHours}
-                    onChangeText={setIntervalHours}
-                    placeholder="1"
-                    placeholderTextColor={Colors.textMuted}
-                    keyboardType="number-pad"
-                  />
-                </View>
-                <View style={styles.durationInput}>
-                  <Text style={styles.durationLabel}>Minutes</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={intervalMinutes}
-                    onChangeText={setIntervalMinutes}
-                    placeholder="0"
-                    placeholderTextColor={Colors.textMuted}
-                    keyboardType="number-pad"
-                  />
-                </View>
-              </View>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.exerciseHeader}>
-            <Text style={styles.sectionTitle}>Exercises</Text>
-            <TouchableOpacity style={styles.addExerciseBtn} onPress={addExerciseForm}>
-              <Ionicons name="add-circle" size={24} color={Colors.accent} />
-              <Text style={styles.addExerciseText}>Add</Text>
-            </TouchableOpacity>
-          </View>
-
-          {exercises.map((exercise, index) => (
-            <ExerciseFormCard
-              key={index}
-              index={index}
-              exercise={exercise}
-              onUpdate={updateExerciseForm}
-              onRemove={removeExerciseForm}
-              categoryType={categoryType}
-            />
-          ))}
-
-          {exercises.length === 0 && (
-            <View style={styles.emptyExercises}>
-              <Text style={styles.emptyText}>No exercises added yet</Text>
-            </View>
-          )}
-        </View>
-
-        {onDelete && (
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={onDelete}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="trash-outline" size={20} color={Colors.error} />
-            <Text style={styles.deleteButtonText}>Delete Category</Text>
-          </TouchableOpacity>
-        )}
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
+        dragItemOverflow={true}
+      />
 
       <View style={styles.bottomBar}>
         <TouchableOpacity
@@ -180,7 +201,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  scrollView: {
+  listContainer: {
     flex: 1,
   },
   scrollContent: {

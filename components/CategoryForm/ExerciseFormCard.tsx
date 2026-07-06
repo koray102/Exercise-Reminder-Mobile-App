@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Switch } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, Easing } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { ExerciseFormData } from './types';
@@ -10,131 +11,185 @@ interface Props {
   onUpdate: (index: number, field: keyof ExerciseFormData, value: string | boolean) => void;
   onRemove: (index: number) => void;
   categoryType?: 'stretch' | 'workout';
+  drag?: () => void;
+  isActive?: boolean;
 }
 
-export default function ExerciseFormCard({ exercise, index, onUpdate, onRemove, categoryType = 'stretch' }: Props) {
+export default function ExerciseFormCard({ exercise, index, onUpdate, onRemove, categoryType = 'stretch', drag, isActive }: Props) {
+  // Expand by default if it's a new/empty exercise
+  const isNew = exercise.name.trim() === '';
+  const [isExpanded, setIsExpanded] = useState(isNew);
+  const animation = useSharedValue(isNew ? 1 : 0);
+
+  const toggleExpand = () => {
+    const nextState = !isExpanded;
+    setIsExpanded(nextState);
+    animation.value = withTiming(nextState ? 1 : 0, { 
+      duration: 300, 
+      easing: Easing.bezier(0.4, 0, 0.2, 1) 
+    });
+  };
+
+  const arrowStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${interpolate(animation.value, [0, 1], [-90, 0])}deg` }],
+  }));
+
+  const contentStyle = useAnimatedStyle(() => ({
+    opacity: animation.value,
+    maxHeight: interpolate(animation.value, [0, 1], [0, 1000]),
+    overflow: 'hidden',
+    marginTop: interpolate(animation.value, [0, 1], [0, 16]),
+  }));
+
   return (
-    <View style={styles.exerciseCard}>
+    <View style={[styles.exerciseCard, isActive && styles.exerciseCardActive]}>
       <View style={styles.exerciseCardHeader}>
-        <Text style={styles.exerciseCardTitle}>Exercise {index + 1}</Text>
-        <TouchableOpacity onPress={() => onRemove(index)}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TouchableOpacity onPress={toggleExpand} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={{ marginRight: 2 }}>
+            <Animated.View style={arrowStyle}>
+              <Ionicons name="chevron-down" size={20} color={Colors.textSecondary} />
+            </Animated.View>
+          </TouchableOpacity>
+          {drag && (
+            <TouchableOpacity 
+              onPressIn={isExpanded ? undefined : drag} 
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              disabled={isExpanded}
+            >
+              <Ionicons 
+                name="reorder-three" 
+                size={24} 
+                color={Colors.textSecondary} 
+                style={{ opacity: isExpanded ? 0.3 : 1 }}
+              />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={toggleExpand} activeOpacity={0.8}>
+            <Text style={styles.exerciseCardTitle}>
+              {exercise.name ? exercise.name : `Exercise ${index + 1}`}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity onPress={() => onRemove(index)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Ionicons name="close-circle" size={22} color={Colors.error} />
         </TouchableOpacity>
       </View>
 
-      <TextInput
-        style={styles.input}
-        value={exercise.name}
-        onChangeText={v => onUpdate(index, 'name', v)}
-        placeholder="Exercise name"
-        placeholderTextColor={Colors.textMuted}
-      />
+      <Animated.View style={contentStyle}>
+        <TextInput
+          style={styles.input}
+          value={exercise.name}
+          onChangeText={v => onUpdate(index, 'name', v)}
+          placeholder="Exercise name"
+          placeholderTextColor={Colors.textMuted}
+        />
 
-      <TextInput
-        style={[styles.input, styles.multilineInput]}
-        value={exercise.description}
-        onChangeText={v => onUpdate(index, 'description', v)}
-        placeholder="Description (optional)"
-        placeholderTextColor={Colors.textMuted}
-        multiline
-        numberOfLines={2}
-      />
+        <TextInput
+          style={[styles.input, styles.multilineInput]}
+          value={exercise.description}
+          onChangeText={v => onUpdate(index, 'description', v)}
+          placeholder="Description (optional)"
+          placeholderTextColor={Colors.textMuted}
+          multiline
+          numberOfLines={2}
+        />
 
-      <TextInput
-        style={styles.input}
-        value={exercise.youtube_link}
-        onChangeText={v => onUpdate(index, 'youtube_link', v)}
-        placeholder="YouTube link (optional)"
-        placeholderTextColor={Colors.textMuted}
-        autoCapitalize="none"
-        keyboardType="url"
-      />
+        <TextInput
+          style={styles.input}
+          value={exercise.youtube_link}
+          onChangeText={v => onUpdate(index, 'youtube_link', v)}
+          placeholder="YouTube link (optional)"
+          placeholderTextColor={Colors.textMuted}
+          autoCapitalize="none"
+          keyboardType="url"
+        />
 
-      <View style={styles.typeToggleContainer}>
-        <TouchableOpacity
-          style={[styles.typeOption, exercise.type === 'time' && styles.typeOptionActive]}
-          onPress={() => onUpdate(index, 'type', 'time')}
-        >
-          <Text style={[styles.typeOptionText, exercise.type === 'time' && styles.typeOptionTextActive]}>Time</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.typeOption, exercise.type === 'reps' && styles.typeOptionActive]}
-          onPress={() => onUpdate(index, 'type', 'reps')}
-        >
-          <Text style={[styles.typeOptionText, exercise.type === 'reps' && styles.typeOptionTextActive]}>Reps</Text>
-        </TouchableOpacity>
-      </View>
-
-      {exercise.type === 'time' ? (
-        <View style={styles.durationRow}>
-          <View style={styles.durationInput}>
-            <Text style={styles.durationLabel}>Minutes</Text>
-            <TextInput
-              style={styles.input}
-              value={exercise.duration_minutes}
-              onChangeText={v => onUpdate(index, 'duration_minutes', v)}
-              keyboardType="number-pad"
-              placeholder="0"
-              placeholderTextColor={Colors.textMuted}
-            />
-          </View>
-          <View style={styles.durationInput}>
-            <Text style={styles.durationLabel}>Seconds</Text>
-            <TextInput
-              style={styles.input}
-              value={exercise.duration_seconds}
-              onChangeText={v => onUpdate(index, 'duration_seconds', v)}
-              keyboardType="number-pad"
-              placeholder="30"
-              placeholderTextColor={Colors.textMuted}
-            />
-          </View>
+        <View style={styles.typeToggleContainer}>
+          <TouchableOpacity
+            style={[styles.typeOption, exercise.type === 'time' && styles.typeOptionActive]}
+            onPress={() => onUpdate(index, 'type', 'time')}
+          >
+            <Text style={[styles.typeOptionText, exercise.type === 'time' && styles.typeOptionTextActive]}>Time</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.typeOption, exercise.type === 'reps' && styles.typeOptionActive]}
+            onPress={() => onUpdate(index, 'type', 'reps')}
+          >
+            <Text style={[styles.typeOptionText, exercise.type === 'reps' && styles.typeOptionTextActive]}>Reps</Text>
+          </TouchableOpacity>
         </View>
-      ) : (
-        <View style={styles.durationRow}>
-          <View style={styles.durationInput}>
-            <Text style={styles.durationLabel}>Rep Count</Text>
+
+        {exercise.type === 'time' ? (
+          <View style={styles.durationRow}>
+            <View style={styles.durationInput}>
+              <Text style={styles.durationLabel}>Minutes</Text>
+              <TextInput
+                style={styles.input}
+                value={exercise.duration_minutes}
+                onChangeText={v => onUpdate(index, 'duration_minutes', v)}
+                keyboardType="number-pad"
+                placeholder="0"
+                placeholderTextColor={Colors.textMuted}
+              />
+            </View>
+            <View style={styles.durationInput}>
+              <Text style={styles.durationLabel}>Seconds</Text>
+              <TextInput
+                style={styles.input}
+                value={exercise.duration_seconds}
+                onChangeText={v => onUpdate(index, 'duration_seconds', v)}
+                keyboardType="number-pad"
+                placeholder="30"
+                placeholderTextColor={Colors.textMuted}
+              />
+            </View>
+          </View>
+        ) : (
+          <View style={styles.durationRow}>
+            <View style={styles.durationInput}>
+              <Text style={styles.durationLabel}>Rep Count</Text>
+              <TextInput
+                style={styles.input}
+                value={exercise.reps}
+                onChangeText={v => onUpdate(index, 'reps', v.replace(/[^0-9]/g, ''))}
+                keyboardType="number-pad"
+                placeholder="15"
+                placeholderTextColor={Colors.textMuted}
+              />
+            </View>
+          </View>
+        )}
+
+        {/* Weight Field (Only for Workouts) */}
+        {categoryType === 'workout' && (
+          <View style={styles.inputGroup}>
+            <Text style={styles.durationLabel}>Weight (e.g. 50kg, 20lbs)</Text>
             <TextInput
               style={styles.input}
-              value={exercise.reps}
-              onChangeText={v => onUpdate(index, 'reps', v.replace(/[^0-9]/g, ''))}
-              keyboardType="number-pad"
-              placeholder="15"
+              value={exercise.weight}
+              onChangeText={v => onUpdate(index, 'weight', v)}
+              placeholder="Weight"
               placeholderTextColor={Colors.textMuted}
             />
           </View>
-        </View>
-      )}
+        )}
 
-      {/* Weight Field (Only for Workouts) */}
-      {categoryType === 'workout' && (
-        <View style={styles.inputGroup}>
-          <Text style={styles.durationLabel}>Weight (e.g. 50kg, 20lbs)</Text>
-          <TextInput
-            style={styles.input}
-            value={exercise.weight}
-            onChangeText={v => onUpdate(index, 'weight', v)}
-            placeholder="Weight"
-            placeholderTextColor={Colors.textMuted}
+        {/* Two-Sided Toggle (Only for Stretches) */}
+        {categoryType === 'stretch' && (
+        <View style={styles.twoSidedRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.twoSidedLabel}>Two-Sided</Text>
+            <Text style={styles.twoSidedDesc}>Perform on both left and right sides</Text>
+          </View>
+          <Switch
+            value={exercise.is_two_sided}
+            onValueChange={v => onUpdate(index, 'is_two_sided', v)}
+            trackColor={{ false: Colors.surfaceBorder, true: Colors.accentMuted }}
+            thumbColor={exercise.is_two_sided ? Colors.accent : Colors.textMuted}
           />
         </View>
-      )}
-
-      {/* Two-Sided Toggle (Only for Stretches) */}
-      {categoryType === 'stretch' && (
-      <View style={styles.twoSidedRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.twoSidedLabel}>Two-Sided</Text>
-          <Text style={styles.twoSidedDesc}>Perform on both left and right sides</Text>
-        </View>
-        <Switch
-          value={exercise.is_two_sided}
-          onValueChange={v => onUpdate(index, 'is_two_sided', v)}
-          trackColor={{ false: Colors.surfaceBorder, true: Colors.accentMuted }}
-          thumbColor={exercise.is_two_sided ? Colors.accent : Colors.textMuted}
-        />
-      </View>
-      )}
+        )}
+      </Animated.View>
     </View>
   );
 }
@@ -163,11 +218,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.surfaceBorder,
   },
+  exerciseCardActive: {
+    backgroundColor: Colors.surface,
+    borderColor: Colors.accent,
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
   exerciseCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
   },
   exerciseCardTitle: {
     fontSize: 15,
