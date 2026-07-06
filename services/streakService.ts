@@ -1,9 +1,6 @@
-import { getStreaks, updateStreaks, incrementStretchCount, markSkippedToday, resetDailySkipFlag } from '../repositories/StreakRepository';
-import { updateCategoryLastCompleted, updateCategoryRoutineCompleted, getAllCategories } from '../repositories/CategoryRepository';
-import { getSettings } from '../repositories/SettingsRepository';
-import { Config } from '../constants/config';
+import { getStreaks, updateStreaks, incrementStretchCount } from '../repositories/StreakRepository';
+import { updateCategoryRoutineCompleted, getAllCategories } from '../repositories/CategoryRepository';
 import { getTodayString, isDateStringToday, isYesterday } from '../utils/date';
-import { addActiveMinutes } from '../utils/time';
 
 
 
@@ -17,19 +14,14 @@ export async function onRoutineCompleted(categoryId: string): Promise<{
   newStreak: number;
   totalCount: number;
 }> {
-  const streaks = await getStreaks();
-  const today = getTodayString();
-
   // Update category's last completed timestamp and routine completion timestamp
   await updateCategoryRoutineCompleted(categoryId, new Date().toISOString());
 
   // Always increment total stretch count
   await incrementStretchCount();
 
-  // If already skipped today, streak stays at 0
-  if (!streaks.skipped_today) {
-    await evaluateDailyStreak();
-  }
+  // Evaluate if daily streak should be updated
+  await evaluateDailyStreak();
 
   // Fetch updated streaks to return
   const updatedStreaks = await getStreaks();
@@ -49,8 +41,8 @@ export async function evaluateDailyStreak(): Promise<void> {
   const streaks = await getStreaks();
   const today = getTodayString();
 
-  if (streaks.skipped_today || streaks.last_completed_date === today) {
-    return; // Zaten atlanmış veya bugün tamamlanmış
+  if (streaks.last_completed_date === today) {
+    return; // Bugün zaten tamamlanmış
   }
 
   // Check if ALL active categories are completed TODAY (using Local Time)
@@ -83,80 +75,36 @@ export async function evaluateDailyStreak(): Promise<void> {
 
 /**
  * Called when a grace period expires for a category.
- * - Resets streak to 0
- * - Sets last_completed_at = now to restart the interval cycle
+ * No-op: Grace period expiring has no penalty.
+ * Notifications continue at fixed intervals regardless of user action.
+ * Streak is evaluated purely on a daily basis (did user complete all categories today?).
  */
-export async function onGraceExpired(categoryId: string): Promise<void> {
-  console.log('[Streak] Grace expired for category:', categoryId);
-  // Ceza kaldirildi: Artık grace period dolsa da streak bozulmuyor. Sadece döngü baştan başlıyor.
-  await updateCategoryLastCompleted(categoryId, new Date().toISOString());
+export async function onGraceExpired(_categoryId: string): Promise<void> {
+  // No-op: grace period expiring doesn't affect timing or streak
 }
 
 /**
  * Check all categories for expired grace periods.
- * If any category's grace period has expired (elapsed >= interval + grace),
- * reset streak and restart the cycle.
- * 
- * Call this on app open and screen focus to catch expirations
- * that happened while the app was closed.
+ * Since grace period expiring has no penalty and doesn't affect timing,
+ * this is now a no-op that returns false to prevent unnecessary rescheduling.
  */
 export async function checkAllGracePeriods(): Promise<boolean> {
-  let anyExpired = false;
-
-  try {
-    const categories = await getAllCategories();
-    const now = Date.now();
-
-    for (const category of categories) {
-      if (!category.is_active || !category.last_completed_at || category.type === 'workout') continue;
-
-      const lastCompleted = new Date(category.last_completed_at);
-      const settings = await getSettings();
-      
-      const expirationTime = addActiveMinutes(
-        lastCompleted,
-        category.interval_minutes + Config.GRACE_PERIOD_MINUTES,
-        settings.active_window_start,
-        settings.active_window_end
-      );
-
-      if (now >= expirationTime.getTime()) {
-        // Grace period has expired — reset streak and restart cycle
-        await onGraceExpired(category.id);
-        anyExpired = true;
-      }
-    }
-  } catch (error) {
-    console.error('[Streak] checkAllGracePeriods error:', error);
-  }
-
-  return anyExpired;
+  return false;
 }
 
 /**
- * Called when user presses "Skip" on a reminder.
- * - Resets current_day_streak to 0
- * - Marks that a skip happened today
- */
-export async function onReminderSkipped(): Promise<void> {
-  await markSkippedToday();
-}
-
-/**
- * Should be called at midnight or app open to reset daily skip flag.
+ * Should be called at app open to handle day transitions.
+ * - Resets streak to 0 if a day was missed entirely
  */
 export async function checkAndResetDailyStreak(): Promise<void> {
   const streaks = await getStreaks();
   const today = getTodayString();
 
-  // If last completed date is not today or yesterday, we need to evaluate
-  if (streaks.last_completed_date && streaks.last_completed_date !== today && !isYesterday(streaks.last_completed_date)) {
-    // Missed a day → reset streak
-    await updateStreaks({ current_day_streak: 0 });
-  }
+  const streakEarnedToday = streaks.last_completed_date === today;
+  const streakEarnedYesterday = streaks.last_completed_date ? isYesterday(streaks.last_completed_date) : false;
 
-  // Reset daily skip flag if it's a new day
-  if (streaks.last_completed_date !== today) {
-    await resetDailySkipFlag();
+  // If streak wasn't earned today or yesterday, a day was missed → reset streak
+  if (streaks.last_completed_date && !streakEarnedToday && !streakEarnedYesterday) {
+    await updateStreaks({ current_day_streak: 0 });
   }
 }

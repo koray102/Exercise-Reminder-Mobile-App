@@ -30,10 +30,6 @@ export function updateStreaks(streaks: Partial<Omit<Streaks, 'id'>>): Promise<vo
       fields.push('last_completed_date = ?');
       args.push(streaks.last_completed_date);
     }
-    if (streaks.skipped_today !== undefined) {
-      fields.push('skipped_today = ?');
-      args.push(streaks.skipped_today);
-    }
 
     if (fields.length > 0) {
       await db.runAsync(`UPDATE streaks SET ${fields.join(', ')} WHERE id = 1`, ...args);
@@ -48,23 +44,5 @@ export function incrementStretchCount(): Promise<void> {
     const db = await getDatabase();
     await db.runAsync('UPDATE streaks SET total_stretch_count = total_stretch_count + 1 WHERE id = 1');
     console.log('[DB] incrementStretchCount OK');
-  });
-}
-
-export function markSkippedToday(): Promise<void> {
-  return withDbMutex(async () => {
-    console.log('[DB] markSkippedToday');
-    const db = await getDatabase();
-    await db.runAsync('UPDATE streaks SET skipped_today = 1, current_day_streak = 0 WHERE id = 1');
-    console.log('[DB] markSkippedToday OK');
-  });
-}
-
-export function resetDailySkipFlag(): Promise<void> {
-  return withDbMutex(async () => {
-    console.log('[DB] resetDailySkipFlag');
-    const db = await getDatabase();
-    await db.runAsync('UPDATE streaks SET skipped_today = 0 WHERE id = 1');
-    console.log('[DB] resetDailySkipFlag OK');
   });
 }

@@ -41,5 +41,4 @@ export interface Streaks {
   current_day_streak: number;
   total_stretch_count: number;
   last_completed_date: string | null;
-  skipped_today: number;
 }

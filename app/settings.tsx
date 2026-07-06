@@ -8,15 +8,10 @@ import {
   ScrollView,
   TextInput,
   Alert,
-  LayoutAnimation,
   Platform,
-  UIManager,
   Vibration,
 } from 'react-native';
 
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
@@ -26,6 +21,8 @@ import { useApp } from '../contexts/AppContext';
 import { getSettings, updateSettings } from '../repositories/SettingsRepository';
 import { scheduleAllNotifications } from '../services/notificationService';
 import { isWithinActiveWindow } from '../utils/time';
+
+const SOUND_BEEP = require('../assets/sounds/beep.mp3');
 
 export default function SettingsScreen() {
   const { refreshData } = useApp();
@@ -80,7 +77,6 @@ export default function SettingsScreen() {
   };
 
   const handleToggleHaptics = async (value: boolean) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setHapticsEnabled(value);
     try {
       await updateSettings({
@@ -113,7 +109,6 @@ export default function SettingsScreen() {
   };
 
   const handleToggleSound = async (value: boolean) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setSoundEnabled(value);
     try {
       await updateSettings({
@@ -128,7 +123,7 @@ export default function SettingsScreen() {
     setSoundVolume(volumeLevel);
     
     try {
-      const { sound } = await Audio.Sound.createAsync(require('../assets/sounds/beep.mp3'));
+      const { sound } = await Audio.Sound.createAsync(SOUND_BEEP);
       const volumeValue = volumeLevel === 'low' ? 0.3 : volumeLevel === 'medium' ? 0.6 : 1.0;
       await sound.setVolumeAsync(volumeValue);
       await sound.playAsync();

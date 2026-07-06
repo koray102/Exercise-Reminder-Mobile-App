@@ -12,6 +12,9 @@ import { scheduleAllNotifications } from '../services/notificationService';
 import { useApp } from '../contexts/AppContext';
 import { Config } from '../constants/config';
 
+const SOUND_BEEP = require('../assets/sounds/beep.mp3');
+const SOUND_FINISH = require('../assets/sounds/finish.mp3');
+
 export type Phase = 'prep' | 'active' | 'finished' | 'completed';
 
 export function useExerciseSession(categoryId: string | undefined) {
@@ -101,8 +104,8 @@ export function useExerciseSession(categoryId: string | undefined) {
     if (!soundEnabled.current) return;
     try {
       const asset = type === 'beep' 
-        ? require('../assets/sounds/beep.mp3') 
-        : require('../assets/sounds/finish.mp3');
+        ? SOUND_BEEP 
+        : SOUND_FINISH;
       
       const { sound } = await Audio.Sound.createAsync(asset);
       const volumeValue = soundVolume.current === 'low' ? 0.3 : soundVolume.current === 'medium' ? 0.6 : 1.0;

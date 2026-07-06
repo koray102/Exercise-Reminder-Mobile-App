@@ -114,56 +114,58 @@ async function scheduleWindowStartNotification(startStr: string): Promise<void> 
 }
 
 /**
- * Schedule grace period notifications for a single category using Timeline Simulation.
+ * Schedule reminder notifications for a single category using Timeline Simulation.
+ * Notifications are spaced at exact fixed intervals (no grace period shifting).
  * Automatically skips time outside the active window.
  */
 async function scheduleCategoryNotifications(category: Category, startStr: string, endStr: string): Promise<void> {
   const intervalMinutes = category.interval_minutes;
-  const graceMinutes = Config.GRACE_PERIOD_MINUTES;
   const now = new Date();
 
   // 1. Determine when the current cycle started
   let cycleStart = now;
   if (category.last_completed_at) {
     const lastCompleted = new Date(category.last_completed_at);
-    // When would this cycle have naturally expired? (Accounting for active hours)
-    const expirationTime = addActiveMinutes(lastCompleted, intervalMinutes + graceMinutes, startStr, endStr);
+    // Check if the first interval has expired
+    const firstIntervalEnd = addActiveMinutes(lastCompleted, intervalMinutes, startStr, endStr);
     
-    if (now > expirationTime) {
-      // The user completely missed the window and the streak is dead.
-      // We start counting from NOW so they get a fresh reminder.
-      cycleStart = now;
+    if (now > firstIntervalEnd) {
+      // First interval already passed. Fast-forward to find the latest cycle start before now.
+      // This preserves the user's original rhythm instead of shifting to "now".
+      let cursor = lastCompleted;
+      for (let j = 0; j < 100; j++) {
+        const nextCursor = addActiveMinutes(cursor, intervalMinutes, startStr, endStr);
+        if (nextCursor > now) break;
+        cursor = nextCursor;
+      }
+      cycleStart = cursor;
     } else {
-      // Streak is still alive. The cycle started when they last completed it.
+      // First interval hasn't expired yet. Start from last completed.
       cycleStart = lastCompleted;
     }
   }
 
-  // 2. Project the next 10 cycles into the future
+  // 2. Project the next 10 notifications into the future at fixed intervals
   const MAX_CYCLES = 10;
   let currentCycleStart = cycleStart;
 
   for (let i = 0; i < MAX_CYCLES; i++) {
     // Add interval time (ignoring time outside active window)
     const intervalEnd = addActiveMinutes(currentCycleStart, intervalMinutes, startStr, endStr);
-    // Add grace time (ignoring time outside active window)
-    const graceEnd = addActiveMinutes(currentCycleStart, intervalMinutes + graceMinutes, startStr, endStr);
 
-    // Schedule: Main reminder when interval expires
+    // Schedule: Reminder when interval expires
     if (intervalEnd > now) {
       const delaySec = Math.floor((intervalEnd.getTime() - now.getTime()) / 1000);
       await scheduleNotification(
         category,
         `🧘 ${category.title} — It's time to stretch!`,
-        'grace_start',
+        'reminder',
         delaySec
       );
     }
 
-
-
-    // The next cycle mathematically starts exactly when this cycle's grace period ends.
-    currentCycleStart = graceEnd;
+    // Next cycle starts exactly at intervalEnd — no grace period shifting
+    currentCycleStart = intervalEnd;
   }
 }
 
